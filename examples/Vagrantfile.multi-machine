@@ -1,0 +1,81 @@
+# Multi-machine example - web server and database
+# This demonstrates multiple catlets in one Vagrantfile
+
+Vagrant.configure("2") do |config|
+  # Web server catlet
+  config.vm.define "web" do |web|
+    web.vm.provider :eryph do |eryph|
+      eryph.project = "web-stack"
+      
+      eryph.catlet = {
+        parent: "dbosoft/ubuntu-22.04/latest",
+        cpu: { count: 2 },
+        memory: { startup: 2048 }
+      }
+      
+      eryph.auto_config = true
+      eryph.auto_create_project = true
+      
+      # Install nginx and basic web tools
+      eryph.fodder = [
+        {
+          name: "web-setup",
+          type: "cloud-config",
+          content: {
+            "packages" => ["nginx", "nodejs", "npm"],
+            "runcmd" => [
+              "systemctl enable nginx",
+              "systemctl start nginx",
+              "echo '<h1>Web Server Ready</h1>' > /var/www/html/index.html"
+            ]
+          }
+        }
+      ]
+    end
+    
+    web.vm.hostname = "web-server"
+    
+    web.vm.provision "shell", inline: <<-SHELL
+      echo "Web server catlet configured"
+      nginx -v
+    SHELL
+  end
+  
+  # Database catlet
+  config.vm.define "db" do |db|
+    db.vm.provider :eryph do |eryph|
+      eryph.project = "web-stack"  # Same project
+      
+      eryph.catlet = {
+        parent: "dbosoft/ubuntu-22.04/latest",
+        cpu: { count: 1 },
+        memory: { startup: 1024 }
+      }
+      
+      eryph.auto_config = true
+      
+      # Install PostgreSQL
+      eryph.fodder = [
+        {
+          name: "db-setup",
+          type: "cloud-config",
+          content: {
+            "packages" => ["postgresql", "postgresql-contrib"],
+            "runcmd" => [
+              "systemctl enable postgresql",
+              "systemctl start postgresql",
+              "sudo -u postgres createdb webappdb"
+            ]
+          }
+        }
+      ]
+    end
+    
+    db.vm.hostname = "db-server"
+    
+    db.vm.provision "shell", inline: <<-SHELL
+      echo "Database catlet configured"
+      sudo -u postgres psql -c "SELECT version();"
+    SHELL
+  end
+end

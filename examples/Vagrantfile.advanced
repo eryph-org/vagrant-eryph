@@ -1,0 +1,160 @@
+# Advanced configuration example with custom resources
+# This demonstrates advanced catlet configuration options
+
+Vagrant.configure("2") do |config|
+  config.vm.provider :eryph do |eryph|
+    # Project and client configuration
+    eryph.project = "advanced-project"
+    eryph.configuration_name = "production"  # Use production Eryph config
+    eryph.auto_create_project = true
+    
+    # Advanced catlet configuration with custom resources
+    eryph.catlet = {
+      parent: "dbosoft/ubuntu-22.04/latest",
+      
+      # CPU configuration
+      cpu: { 
+        count: 4,
+        weight: 100  # CPU scheduling weight
+      },
+      
+      # Memory configuration  
+      memory: { 
+        startup: 4096,    # 4GB startup memory
+        minimum: 2048,    # 2GB minimum
+        maximum: 8192     # 8GB maximum (dynamic memory)
+      },
+      
+      # Custom drives
+      drives: [
+        {
+          name: "system",
+          size: 40,           # 40GB system drive
+          template: "default"
+        },
+        {
+          name: "data",
+          size: 100,          # 100GB data drive
+          template: "fast"    # Use fast storage template
+        }
+      ],
+      
+      # Custom networks
+      networks: [
+        {
+          name: "frontend",
+          adapter_name: "eth0",
+          subnet_name: "web-tier"
+        },
+        {
+          name: "backend", 
+          adapter_name: "eth1",
+          subnet_name: "data-tier"
+        }
+      ]
+    }
+    
+    # Advanced auto-configuration
+    eryph.auto_config = true
+    eryph.ssh_key_injection = :variable  # Use variable-based SSH key injection
+    
+    # Complex cloud-init with multiple fodder items
+    eryph.fodder = [
+      # System hardening
+      {
+        name: "security-hardening",
+        type: "cloud-config",
+        content: {
+          "packages" => ["fail2ban", "ufw", "unattended-upgrades"],
+          "runcmd" => [
+            "ufw --force enable",
+            "ufw default deny incoming",
+            "ufw allow ssh",
+            "systemctl enable fail2ban",
+            "systemctl start fail2ban"
+          ]
+        }
+      },
+      
+      # Development tools
+      {
+        name: "dev-tools",
+        type: "cloud-config", 
+        content: {
+          "packages" => ["docker.io", "docker-compose", "git", "curl"],
+          "runcmd" => [
+            "systemctl enable docker",
+            "systemctl start docker", 
+            "usermod -aG docker vagrant"
+          ]
+        }
+      },
+      
+      # Custom application setup
+      {
+        name: "app-setup",
+        type: "shellscript",
+        content: <<~BASH
+          #!/bin/bash
+          set -e
+          
+          # Create application directory
+          mkdir -p /opt/myapp
+          chown vagrant:vagrant /opt/myapp
+          
+          # Set up log rotation
+          cat > /etc/logrotate.d/myapp << EOF
+          /opt/myapp/logs/*.log {
+              daily
+              missingok
+              rotate 14
+              compress
+              notifempty
+              create 644 vagrant vagrant
+          }
+          EOF
+          
+          echo "Advanced catlet setup completed" >> /var/log/setup.log
+        BASH
+      }
+    ]
+    
+    # SSL configuration for remote Eryph instances
+    eryph.ssl_verify = true
+    eryph.ssl_ca_file = "/path/to/ca-certificate.pem"
+  end
+  
+  # Advanced VM configuration
+  config.vm.hostname = "advanced-catlet"
+  
+  # Custom SSH configuration
+  config.ssh.keys_only = true
+  config.ssh.paranoid = false
+  
+  # Multiple provisioning steps
+  config.vm.provision "shell", name: "system-info", inline: <<-SHELL
+    echo "=== Advanced Catlet System Information ==="
+    echo "Hostname: $(hostname)"
+    echo "OS: $(lsb_release -d)"
+    echo "Memory: $(free -h | grep Mem:)"
+    echo "CPU: $(nproc) cores"
+    echo "Disk: $(df -h / | tail -1)"
+    echo "Network interfaces:"
+    ip addr show | grep -E '^[0-9]+: [^:]+:' | cut -d: -f2
+  SHELL
+  
+  config.vm.provision "shell", name: "docker-check", inline: <<-SHELL
+    echo "=== Docker Status ==="
+    systemctl is-active docker
+    docker --version
+    docker-compose --version
+  SHELL
+  
+  # File provisioning example
+  config.vm.provision "file", source: "./app-config.yml", destination: "/tmp/app-config.yml"
+  
+  config.vm.provision "shell", name: "finalize", inline: <<-SHELL
+    echo "Advanced catlet provisioning completed at $(date)" >> /var/log/setup.log
+    echo "Catlet ready for production workloads"
+  SHELL
+end

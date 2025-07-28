@@ -1,0 +1,56 @@
+# Legacy configuration format example - backward compatibility
+# This shows the older parent_gene format that's still supported
+
+Vagrant.configure("2") do |config|
+  config.vm.provider :eryph do |eryph|
+    # Required settings
+    eryph.project = "legacy-project"
+    
+    # Legacy format - still supported for backward compatibility
+    eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"  # Old format
+    eryph.cpu = 2                                      # Old format
+    eryph.memory = 2048                                # Old format
+    
+    # Modern configuration options work with legacy format
+    eryph.auto_config = true
+    eryph.auto_create_project = true
+    eryph.configuration_name = "default"
+    
+    # Optional: Custom drives (legacy format)
+    eryph.drives = [
+      {
+        name: "data-drive",
+        size: 20  # GB
+      }
+    ]
+    
+    # Optional: Custom networks (legacy format)  
+    eryph.networks = [
+      {
+        name: "isolated-network",
+        adapter_name: "eth1"
+      }
+    ]
+    
+    # Cloud-init works the same in both formats
+    eryph.fodder = [
+      {
+        name: "basic-setup",
+        type: "cloud-config",
+        content: {
+          "packages" => ["htop", "tree"],
+          "runcmd" => [
+            "echo 'Legacy format catlet ready' >> /var/log/setup.log"
+          ]
+        }
+      }
+    ]
+  end
+  
+  config.vm.hostname = "legacy-ubuntu"
+  
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "Legacy configuration catlet running"
+    echo "This uses the older parent_gene format"
+  SHELL
+end

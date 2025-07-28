@@ -1,0 +1,54 @@
+# Basic Ubuntu Linux catlet example - recommended configuration format
+# This demonstrates the new catlet configuration approach
+
+Vagrant.configure("2") do |config|  
+  config.vm.provider :eryph do |eryph|
+    # Required: Project name (will be auto-created if it doesn't exist)
+    eryph.project = "development"
+    
+    # Recommended: New catlet configuration format
+    eryph.catlet = {
+      parent: "dbosoft/ubuntu-22.04/latest",  # Ubuntu 22.04 LTS
+      cpu: { count: 2 },                      # 2 vCPUs
+      memory: { startup: 2048 }               # 2GB RAM
+    }
+    
+    # Auto-configuration (recommended for development)
+    eryph.auto_config = true                  # Creates vagrant user with SSH keys
+    eryph.auto_create_project = true          # Creates project if missing
+    
+    # SSH key injection method for Linux catlets
+    eryph.ssh_key_injection = :direct         # :direct or :variable
+    
+    # Optional: Client configuration  
+    eryph.configuration_name = "default"      # Eryph client config to use
+    
+    # Optional: Custom cloud-init configuration
+    eryph.fodder = [
+      {
+        name: "dev-packages",
+        type: "cloud-config", 
+        content: {
+          "packages" => ["git", "curl", "vim", "build-essential"],
+          "runcmd" => [
+            "echo 'Development packages installed' >> /var/log/setup.log"
+          ]
+        }
+      }
+    ]
+  end
+  
+  # Standard Vagrant configuration
+  config.vm.hostname = "ubuntu-dev"
+  
+  # Increase boot timeout for catlet bootstrap time
+  config.vm.boot_timeout = 600  # 10 minutes
+  
+  # Example provisioning
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "Hello from Ubuntu catlet on Eryph!"
+    echo "Hostname: $(hostname)"
+    echo "OS: $(lsb_release -d)"
+    echo "User: $(whoami)"
+  SHELL
+end

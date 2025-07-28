@@ -1,0 +1,13 @@
+source 'https://rubygems.org'
+
+gemspec
+
+group :development do
+  gem 'vagrant', git: 'https://github.com/hashicorp/vagrant.git'
+  gem 'pry'
+  gem 'pry-byebug'
+end
+
+group :plugins do
+  gem 'vagrant-eryph', path: '.'
+end
