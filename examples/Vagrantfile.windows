@@ -1,68 +1,10 @@
-# Windows Server catlet example - recommended configuration format  
-# This demonstrates Windows-specific configuration with WinRM
-
+# Windows Server catlet example - using new Ruby-style syntax
 Vagrant.configure("2") do |config|
   config.vm.provider :eryph do |eryph|
-    # Required: Project name
-    eryph.project = "windows-dev"
-    
-    # Recommended: New catlet configuration format
-    eryph.catlet = {
-      parent: "dbosoft/winsrv2022-standard/latest",  # Windows Server 2022
-      cpu: { count: 2 },                             # 2 vCPUs
-      memory: { startup: 4096 }                      # 4GB RAM (recommended for Windows)
-    }
-    
-    # Windows-specific configuration
-    eryph.auto_config = true                         # Creates vagrant user
-    eryph.enable_winrm = true                        # Enable WinRM communication
-    eryph.vagrant_password = "VagrantPass123!"       # Strong password for vagrant user
-    eryph.auto_create_project = true
-    
-    # Optional: Client configuration
-    eryph.configuration_name = "default"
-    
-    # Optional: Windows-specific cloud-init (PowerShell)
-    eryph.fodder = [
-      {
-        name: "install-chocolatey.ps1",
-        type: "powershell",
-        content: <<~POWERSHELL
-          # Install Chocolatey package manager
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          
-          # Install common tools
-          choco install -y git
-          choco install -y notepadplusplus
-          
-          Write-Output "Chocolatey and tools installed" | Out-File -FilePath C:\\setup.log -Append
-        POWERSHELL
-      }
-    ]
+    # Minimal Windows configuration
+    eryph.parent = "dbosoft/winsrv2022-standard/latest"
+    eryph.configuration_name = "zero"  # Use 'zero' configuration
   end
   
-  # Windows VM configuration
-  config.vm.communicator = "winrm"
   config.vm.guest = :windows
-  config.vm.hostname = "win2022-dev"
-  
-  # WinRM configuration
-  config.winrm.username = "vagrant"
-  config.winrm.password = "VagrantPass123!"
-  config.winrm.transport = :negotiate
-  config.winrm.basic_auth_only = false
-  
-  # Windows-specific settings
-  config.windows.halt_timeout = 15
-  
-  # Example provisioning with PowerShell
-  config.vm.provision "powershell", inline: <<-POWERSHELL
-    Write-Output "Hello from Windows Server catlet on Eryph!"
-    Write-Output "Hostname: $env:COMPUTERNAME"
-    Write-Output "OS: $(Get-WmiObject -Class Win32_OperatingSystem | Select-Object -ExpandProperty Caption)"
-    Write-Output "User: $env:USERNAME"
-    Write-Output "PowerShell Version: $($PSVersionTable.PSVersion)"
-  POWERSHELL
 end

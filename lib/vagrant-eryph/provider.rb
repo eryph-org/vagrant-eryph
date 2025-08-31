@@ -64,17 +64,27 @@ module VagrantPlugins
       # SSH into the machine. If the machine is not at a point where
       # SSH is even possible, then `nil` should be returned.
       def ssh_info
+        @machine.ui.info("DEBUG: Checking SSH info...")
         catlet = Provider.eryph_catlet(@machine)
         
         # Return nil if catlet doesn't exist or isn't running
-        return nil unless catlet
+        unless catlet
+          @machine.ui.info("DEBUG: No catlet found")
+          return nil
+        end
+        
+        @machine.ui.info("DEBUG: Catlet status: #{catlet.status}")
         return nil unless catlet.status&.downcase == 'running'
 
         # Get IP address from catlet networks
         ip_address = extract_ip_address(catlet)
+        @machine.ui.info("DEBUG: Extracted IP address: #{ip_address}")
         
         # Return nil if no IP found - this tells Vagrant to keep waiting
-        return nil unless ip_address
+        unless ip_address
+          @machine.ui.info("DEBUG: No IP address available yet")
+          return nil
+        end
 
         config = @machine.provider_config
 
@@ -97,8 +107,14 @@ module VagrantPlugins
 
           # Add private key path if available
           private_key_path = @machine.data_dir.join('private_key')
-          ssh_info[:private_key_path] = [private_key_path.to_s] if private_key_path.exist?
+          if private_key_path.exist?
+            ssh_info[:private_key_path] = [private_key_path.to_s]
+            @machine.ui.info("DEBUG: SSH private key path: #{private_key_path}")
+          else
+            @machine.ui.info("DEBUG: SSH private key not found at: #{private_key_path}")
+          end
 
+          @machine.ui.info("DEBUG: Returning SSH info: #{ssh_info}")
           ssh_info
         end
       end
@@ -122,21 +138,36 @@ module VagrantPlugins
 
       def extract_ip_address(catlet)
         # Extract IP address from catlet networks
-        return nil unless catlet.respond_to?(:networks) && catlet.networks
+        unless catlet.respond_to?(:networks) && catlet.networks
+          @machine.ui.info("DEBUG: Catlet has no networks")
+          return nil
+        end
         
-        catlet.networks.each do |network|
+        @machine.ui.info("DEBUG: Catlet has #{catlet.networks.length} networks")
+        
+        catlet.networks.each_with_index do |network, idx|
+          @machine.ui.info("DEBUG: Network #{idx}: #{network.inspect}")
+          
           # Only check floating port IP addresses (internal IPs are not accessible from outside)
           if network.respond_to?(:floating_port) && network.floating_port
+            @machine.ui.info("DEBUG: Network #{idx} has floating port: #{network.floating_port.inspect}")
             if network.floating_port.respond_to?(:ip_v4_addresses) && 
                network.floating_port.ip_v4_addresses && 
                !network.floating_port.ip_v4_addresses.empty?
-              return network.floating_port.ip_v4_addresses.first
+              ip = network.floating_port.ip_v4_addresses.first
+              @machine.ui.info("DEBUG: Found IP address: #{ip}")
+              return ip
+            else
+              @machine.ui.info("DEBUG: Floating port has no IPv4 addresses")
             end
+          else
+            @machine.ui.info("DEBUG: Network #{idx} has no floating port")
           end
           
           # TODO: Add support for reported IP addresses once available
         end
 
+        @machine.ui.info("DEBUG: No IP address found in any network")
         nil
       end
 
@@ -144,11 +175,11 @@ module VagrantPlugins
         case eryph_status.downcase
         when 'running'
           :running
-        when 'stopped', 'stopping'
+        when 'stopped'
           :stopped
-        when 'starting'
-          :starting
-        when 'error', 'failed'
+        when 'pending'
+          :unknown  # Pending could be starting or stopping - we don't know which
+        when 'error'
           :error
         else
           :unknown

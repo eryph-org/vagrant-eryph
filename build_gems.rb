@@ -19,7 +19,7 @@ FileUtils.cp('../ruby-client/LICENSE', 'temp_build/clientruntime/')
 puts "Copying compute client files..."
 FileUtils.cp_r('../ruby-client/lib/eryph/compute.rb', 'temp_build/compute/lib/eryph/')
 FileUtils.cp_r('../ruby-client/lib/eryph/compute', 'temp_build/compute/lib/eryph/')
-FileUtils.cp('../ruby-client/eryph-compute-client.gemspec', 'temp_build/compute/')
+FileUtils.cp('../ruby-client/eryph-compute.gemspec', 'temp_build/compute/')
 FileUtils.cp('../ruby-client/README.md', 'temp_build/compute/')
 FileUtils.cp('../ruby-client/LICENSE', 'temp_build/compute/')
 
@@ -32,7 +32,7 @@ end
 
 puts "Building compute client gem..."
 Dir.chdir('temp_build/compute') do
-  system('gem build eryph-compute-client.gemspec')
+  system('gem build eryph-compute.gemspec')
   FileUtils.mv(Dir.glob('*.gem'), '../../')
 end
 

@@ -1,4 +1,6 @@
 require 'eryph'
+require 'set'
+require_relative '../errors'
 
 module VagrantPlugins
   module Eryph
@@ -19,26 +21,32 @@ module VagrantPlugins
         end
 
         def list_catlets
-          response = client.catlets.catlets_list
-          # CatletList object contains 'value' array with actual catlets
-          response.respond_to?(:value) ? response.value : []
-        rescue => e
-          @ui.error("Failed to list catlets: #{e.message}")
-          []
+          handle_api_errors do
+            response = client.catlets.catlets_list
+            # CatletList object contains 'value' array with actual catlets
+            response.respond_to?(:value) ? response.value : []
+          end
+        rescue Errors::EryphError
+          []  # Return empty array on API errors to allow graceful degradation
         end
 
         def get_catlet(catlet_id)
-          client.catlets.catlets_get(catlet_id)
-        rescue => e
-          @ui.error("Failed to get catlet #{catlet_id}: #{e.message}")
-          nil
+          handle_api_errors do
+            client.catlets.catlets_get(catlet_id)
+          end
+        rescue Errors::EryphError
+          nil  # Return nil on errors to allow graceful handling
         end
 
         def create_catlet(catlet_config_hash)
           @ui.info("Creating catlet: #{catlet_config_hash[:name]}")
           
+          # Validate configuration first
+          unless validate_catlet_config(catlet_config_hash)
+            raise "Catlet configuration validation failed"
+          end
+          
           # Create proper NewCatletRequest object with hash configuration
-          # This follows the same pattern as AWS provider - simple hash-based config
           request_obj = ::Eryph::ComputeClient::NewCatletRequest.new(
             configuration: catlet_config_hash
           )
@@ -49,30 +57,34 @@ module VagrantPlugins
             @ui.info("Catlet creation initiated (Operation ID: #{operation.id})")
             result = wait_for_operation(operation.id)
             
-            # After successful creation, find the catlet by name
-            # Note: operation resources may not return the correct ID immediately after creation
-            if result.status == 'Completed'
-              catlet_name = catlet_config_hash[:name]
-              @ui.info("Looking for created catlet by name: #{catlet_name}")
-              
-              catlets = client.catlets.catlets_list
-              created_catlet = catlets.value.find { |c| c.name == catlet_name }
-              
-              if created_catlet
-                catlet_id = created_catlet.id
-                @ui.info("Catlet created with ID: #{catlet_id}")
+            if result.completed?
+              # Use OperationResult's catlet accessor - much simpler!
+              catlet = result.catlet
+              if catlet
+                @ui.info("Catlet created with ID: #{catlet.id}")
                 @ui.info("Starting catlet...")
-                start_catlet(catlet_id)
-                
-                # Return a result object that includes the catlet ID for the action
-                result.define_singleton_method(:catlet_id) { catlet_id }
-                result.define_singleton_method(:catlet) { created_catlet }
+                start_catlet(catlet.id)
                 return result
               else
-                raise "Catlet creation completed but catlet not found with name: #{catlet_name}"
+                @ui.warn("Catlet creation completed but no catlet found in operation result")
+                # Fallback to name-based lookup
+                catlet_name = catlet_config_hash[:name]
+                @ui.info("Looking for created catlet by name: #{catlet_name}")
+                
+                catlets = client.catlets.catlets_list
+                created_catlet = catlets.value.find { |c| c.name == catlet_name }
+                
+                if created_catlet
+                  @ui.info("Found catlet with ID: #{created_catlet.id}")
+                  start_catlet(created_catlet.id)
+                  return result
+                else
+                  raise "Catlet creation completed but catlet not found"
+                end
               end
             else
-              raise "Catlet creation failed with status: #{result.status}"
+              error_msg = result.status_message || "Operation failed"
+              raise "Catlet creation failed: #{error_msg}"
             end
           else
             raise "Failed to create catlet: No operation returned"
@@ -184,106 +196,141 @@ module VagrantPlugins
           end
         end
 
-        def wait_for_operation(operation_id, timeout = 600)
-          @ui.info("Waiting for operation #{operation_id} to complete...")
+        def validate_catlet_config(catlet_config)
+          @ui.info("Validating catlet configuration...")
           
-          # Use the client's built-in wait_for_operation method
           begin
-            operation = client.wait_for_operation(operation_id, timeout: timeout)
-            
-            case operation.status
-            when 'Completed'
-              @ui.info("Operation completed successfully")
-              return operation
-            when 'Failed'
-              error_msg = operation.status_message || "Operation failed"
-              @ui.error("Operation failed: #{error_msg}")
-              raise "Operation #{operation_id} failed: #{error_msg}"
-            else
-              @ui.warn("Operation finished with status: #{operation.status}")
-              return operation
+            validation_result = handle_api_errors do
+              client.validate_catlet_config(catlet_config)
             end
-          rescue Timeout::Error => e
-            @ui.error("Operation timed out: #{e.message}")
-            raise e
-          rescue => e
-            @ui.error("Error waiting for operation: #{e.message}")
-            raise e
+            
+            if validation_result.respond_to?(:is_valid) && validation_result.is_valid
+              @ui.success("Configuration validated successfully")
+              return true
+            elsif validation_result.respond_to?(:errors) && validation_result.errors
+              @ui.error("Configuration validation failed:")
+              validation_result.errors.each do |error|
+                @ui.error("  - #{error}")
+              end
+              return false
+            else
+              @ui.detail("Validation result: #{validation_result}")
+              return true  # Assume valid if we can't determine otherwise
+            end
+          rescue Errors::EryphError => e
+            @ui.warn("Config validation failed: #{e.friendly_message}")
+            @ui.detail("Proceeding with catlet creation...")
+            return true  # Don't block creation if validation service unavailable
           end
+        end
+
+        def wait_for_operation(operation_id, timeout = 600)
+          start_time = Time.now
+          last_update = Time.now
+          shown_tasks = Set.new
+          update_interval = 5  # Show updates every 5 seconds for long ops
+          
+          @ui.info("Waiting for operation #{operation_id}...")
+          
+          result = client.wait_for_operation(operation_id, timeout: timeout) do |event_type, data|
+            case event_type
+            when :task_new
+              # Show new tasks
+              task_name = data.name || data.id
+              unless shown_tasks.include?(task_name)
+                @ui.info("  → #{task_name}")
+                shown_tasks.add(task_name)
+              end
+              
+            when :task_update
+              # Show task completions/failures
+              task_name = data.name || data.id
+              if data.status == 'Completed' && shown_tasks.include?(task_name)
+                @ui.success("  ✓ #{task_name}")
+              elsif data.status == 'Failed'
+                error_msg = data.error_message || data.status_message || 'Task failed'
+                @ui.error("  ✗ #{task_name}: #{error_msg}")
+              end
+              
+            when :resource_new
+              # Show created resources
+              resource_type = data.resource_type || 'Resource'
+              resource_id = data.resource_id || data.id || 'unknown'
+              @ui.info("  • Created #{resource_type}: #{resource_id}")
+              
+            when :log_entry
+              # Only show non-debug log entries
+              if data.respond_to?(:level) && data.level != 'Debug'
+                message = data.message || data.to_s
+                @ui.detail("  [Log] #{message}")
+              end
+              
+            when :status
+              # For long operations, show periodic updates (not every poll)
+              elapsed = Time.now - start_time
+              if Time.now - last_update > update_interval && elapsed > 10
+                @ui.info("  Still working... (#{elapsed.round}s elapsed)")
+                last_update = Time.now
+              end
+            end
+          end
+          
+          # Show final result
+          if result.completed?
+            @ui.success("Operation completed successfully")
+          elsif result.failed?
+            error_msg = result.status_message || "Operation failed"
+            @ui.error("Operation failed: #{error_msg}")
+            raise "Operation #{operation_id} failed: #{error_msg}"
+          else
+            @ui.warn("Operation finished with status: #{result.status}")
+          end
+          
+          result
+        rescue Timeout::Error => e
+          @ui.error("Operation timed out: #{e.message}")
+          raise e
+        rescue => e
+          @ui.error("Error waiting for operation: #{e.message}")
+          raise e
         end
 
         private
 
         def create_client
-          config_name = @config.configuration_name || 'default'
+          config_name = @config.configuration_name
           
-          # Try the specified configuration first
-          begin
-            @ui.info("Attempting to connect using configuration: #{config_name}")
-            return create_client_for_config(config_name)
-          rescue => e
-            @ui.warn("Failed to connect with config '#{config_name}': #{e.message}")
-            
-            # Only try 'zero' fallback if we were using 'default'
-            if config_name == 'default'
-              begin
-                @ui.info("Falling back to configuration: zero")
-                client = create_client_for_config('zero')
-                # Check if system client was used (if detectable)
-                if using_system_client?(client)
-                  @ui.info("INFO: You are using the system-client which requires admin privileges.")
-                  @ui.info("      Consider creating a custom client to run without admin credentials.")
-                end
-                return client
-              rescue => zero_error
-                @ui.error("Failed to connect with config 'zero': #{zero_error.message}")
-                raise "Failed to connect to Eryph API. Tried configurations: default, zero"
-              end
-            else
-              # For non-default configs, don't try fallback
-              raise "Failed to connect to Eryph API with configuration: #{config_name}"
-            end
-          end
-        end
-
-        def create_client_for_config(config_name)
           # Build options for client creation
           client_options = {}
           
-          # Add SSL verification option (note: Ruby client uses verify_ssl, not ssl_verify)
-          client_options[:verify_ssl] = @config.ssl_verify if @config.ssl_verify != nil
+          # Add SSL configuration options
+          ssl_config = {}
+          ssl_config[:verify_ssl] = @config.ssl_verify if @config.ssl_verify != nil
+          ssl_config[:ca_file] = @config.ssl_ca_file if @config.ssl_ca_file
+          client_options[:ssl_config] = ssl_config if ssl_config.any?
           
-          # Add other SSL options if supported
-          client_options[:ssl_ca_file] = @config.ssl_ca_file if @config.ssl_ca_file
+          # Add scopes - request write permissions (includes read)
+          client_options[:scopes] = %w[compute:write]
           
-          # Create client with options (Ruby client expects options as keyword arguments)
-          if @config.client_id
-            ::Eryph.compute_client(config_name, @config.client_id, **client_options)
+          # Add client_id if specified
+          client_options[:client_id] = @config.client_id if @config.client_id
+          
+          info_msg = if config_name
+            "Connecting to Eryph using configuration: #{config_name}"
           else
-            ::Eryph.compute_client(config_name, **client_options)
+            "Connecting to Eryph using automatic credential discovery"
           end
-        end
-
-        def build_client_options
-          options = {}
+          @ui.info(info_msg)
           
-          # Add endpoint_name if specified
-          options[:endpoint_name] = @config.endpoint_name if @config.endpoint_name
-          
-          # Add SSL options
-          options[:ssl_verify] = @config.ssl_verify if @config.ssl_verify != nil
-          options[:ssl_ca_file] = @config.ssl_ca_file if @config.ssl_ca_file
-          
-          # Add logger
-          options[:logger] = create_logger
-          
-          options
-        end
-
-        def using_system_client?(client)
-          # This is a placeholder - we may not be able to detect if system client is being used
-          # The Ruby client handles this internally
-          false
+          begin
+            client = ::Eryph.compute_client(config_name, **client_options)
+            @ui.detail("Successfully connected to Eryph API")
+            return client
+          rescue => e
+            @ui.error("Failed to connect to Eryph API: #{e.message}")
+            @ui.detail("Make sure Eryph is running and your credentials are configured")
+            raise "Failed to connect to Eryph API: #{e.message}"
+          end
         end
 
         def create_logger
@@ -301,6 +348,25 @@ module VagrantPlugins
           end
           
           logger
+        end
+
+        # Enhanced error handling that converts API errors to user-friendly messages
+        def handle_api_errors
+          yield
+        rescue => e
+          if e.is_a?(::Eryph::Compute::ProblemDetailsError)
+            @ui.error("API Error: #{e.friendly_message}")
+            if e.has_problem_details?
+              @ui.detail("Problem Type: #{e.problem_type}") if e.problem_type
+              @ui.detail("Instance: #{e.instance}") if e.instance
+            end
+            raise Errors::EryphError.new(e.friendly_message, e)
+          else
+            # Re-raise other errors as-is but with better context
+            @ui.error("Unexpected error: #{e.message}")
+            @ui.detail("Error class: #{e.class}") 
+            raise e
+          end
         end
       end
     end

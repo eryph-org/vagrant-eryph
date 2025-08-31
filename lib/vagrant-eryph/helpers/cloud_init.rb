@@ -31,6 +31,11 @@ module VagrantPlugins
         # Generate complete fodder configuration including user config
         def generate_complete_fodder
           auto_fodder = generate_vagrant_user_fodder
+          
+          # Add Vagrant cloud-init configuration if present
+          cloud_init_fodder = @config.extract_vagrant_cloud_init_config(@machine)
+          auto_fodder.concat(cloud_init_fodder) if cloud_init_fodder.any?
+          
           merge_fodder_with_user_config(auto_fodder)
         end
 
@@ -61,6 +66,7 @@ module VagrantPlugins
                 'shell' => '/bin/bash',
                 'groups' => ['sudo'],
                 'lock_passwd' => false,
+                'passwd' => generate_password_hash('vagrant'),
                 'ssh_authorized_keys' => [ssh_key_data[:public_key]]
               }
             ],

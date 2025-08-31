@@ -1,0 +1,48 @@
+# Hyper-V style configuration - drop-in replacement for Hyper-V provider
+# This example shows how to migrate from Hyper-V to Eryph with minimal changes
+
+Vagrant.configure("2") do |config|
+  # Ubuntu web server - Hyper-V compatible syntax
+  config.vm.define "web" do |web|
+    web.vm.provider :eryph do |eryph|
+      
+      # Required for Eryph (only addition needed for Hyper-V migration)
+      eryph.parent = "dbosoft/ubuntu-22.04/latest"
+      ass
+      # Hyper-V/VirtualBox compatible properties (exact same syntax!)
+      eryph.cpus = 2
+      eryph.memory = 2048
+      eryph.maxmemory = 4096  # Enables dynamic memory
+      eryph.vmname = "web-server"
+      eryph.hostname = "web01"
+      eryph.enable_secure_boot = true
+      
+      # Unix-style drive configuration (Eryph best practice)
+      eryph.add_drive "sda", size: 50  # OS drive
+      eryph.add_drive "sdb", size: 100  # Additional storage
+      
+      # Add guest services gene
+      eryph.add_fodder_gene "dbosoft/guest-services", "linux-install"
+    end
+  end
+  
+  # Windows server - Hyper-V compatible
+  config.vm.define "win" do |win|
+    win.vm.provider :eryph do |eryph|
+      # Windows server setup
+      eryph.parent = "dbosoft/winsrv2022-standard/latest"
+      
+      # Hyper-V compatible settings
+      eryph.cpus = 2
+      eryph.memory = 4096
+      eryph.vmname = "win-server"
+      eryph.enable_secure_boot = true
+      
+      # Storage
+      eryph.add_drive "sda", size: 100  # OS
+    end
+    
+    # Windows-specific Vagrant settings
+    win.vm.guest = :windows
+  end
+end

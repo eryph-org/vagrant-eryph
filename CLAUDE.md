@@ -86,10 +86,11 @@ lib/vagrant-eryph/
 ## Technical Implementation Details
 
 ### Ruby Client Integration
-- **Dependency**: `eryph-compute-client` gem (~> 1.0)
+- **Dependency**: `eryph-compute` gem (~> 1.0) - Updated gem name
 - **Runtime**: `eryph-clientruntime` gem (~> 0.1)
-- **Credential lookup**: Local → User → Global scope
-- **Connection**: REST API with automatic endpoint detection
+- **New API**: `Eryph.compute_client()` unified interface
+- **Credential lookup**: Hierarchical config discovery (./.eryph → ~/.config/.eryph → system)
+- **Connection**: REST API with automatic endpoint detection and zero-config authentication
 
 ### Cross-platform Support
 
@@ -113,6 +114,7 @@ config.vm.provider :eryph do |eryph|
   eryph.project = "my-project"
   eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
   eryph.auto_config = true
+  # Uses new eryph-compute client with zero-config authentication
 end
 ```
 
@@ -137,11 +139,11 @@ config.vm.provider :eryph do |eryph|
   eryph.project = "my-project"
   eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
   
-  # Client authentication options
-  eryph.client_id = "my-client-id"              # Optional: specific client ID
+  # Client authentication options (updated for new client)
+  eryph.client_id = "my-client-id"              # Optional: specific client ID  
   eryph.configuration_name = "production"       # Default: "default"
   
-  # SSL configuration
+  # SSL configuration (verify_ssl instead of ssl_verify)
   eryph.ssl_verify = false                      # Default: false for localhost
   eryph.ssl_ca_file = "/path/to/ca.crt"         # Optional: CA certificate
 end
@@ -160,6 +162,21 @@ The plugin implements a robust client authentication fallback:
 - **Local development**: Can use system client (admin required) or configure "zero" setup
 - **User guidance**: Plugin informs when system client is used and suggests creating custom client
 
+## Recent Updates (2025-01-31)
+
+### Updated Ruby Client Integration
+- **New gem name**: `eryph-compute` (v1.0+) replaces `eryph-compute-client`
+- **Enhanced operation tracking**: Real-time progress with task/resource callbacks
+- **Config validation**: Pre-creation validation with detailed error reporting
+- **Better error handling**: ProblemDetailsError integration for user-friendly messages
+- **Simplified resource access**: OperationResult with direct catlet/resource accessors
+
+### Improved User Experience
+- **Progress feedback**: Shows task progress and resource creation in real-time
+- **Early validation**: Catches config errors before expensive operations
+- **Smart output**: Adapts verbosity to operation complexity
+- **Enhanced errors**: Detailed API error messages with problem type info
+
 ## Development Context
 
 ### Testing Approach
@@ -173,17 +190,37 @@ The plugin implements a robust client authentication fallback:
 
 ### Common Development Patterns
 
-#### Error Handling
-- Localized error messages in `locales/en.yml`
-- Comprehensive validation in config class
-- Network error recovery and retry logic
-- User-friendly error descriptions
+#### Enhanced Error Handling
+- **ProblemDetailsError integration**: RFC 7807 compliant error details from API
+- **User-friendly messages**: Detailed problem information with friendly formatting
+- **Localized error messages** in `locales/en.yml`
+- **Comprehensive validation** in config class with early feedback
+- **Network error recovery** and retry logic
+- **Progressive disclosure**: Basic errors by default, technical details with `--verbose`
 
-#### Operation Monitoring
-- Long-running operations return `operation_id`
-- Progress tracking with `wait_for_operation`
-- Timeout handling (default 300s)
-- Status updates during execution
+#### Enhanced Operation Monitoring
+- **Real-time progress**: Task and resource creation updates
+- **Smart timeouts**: Configurable with progress indicators for long operations
+- **Event callbacks**: `:task_new`, `:task_update`, `:resource_new`, `:log_entry`, `:status`
+- **Operation results**: Rich OperationResult objects with direct resource access
+- **Validation**: Pre-creation config validation with detailed error reporting
+
+#### Operation Progress Output Example
+```
+==> default: Waiting for operation 456...
+==> default: Validating catlet configuration...
+==> default: Configuration validated successfully
+==> default:   → Downloading gene
+==> default:   Still working... (15s elapsed)
+==> default:   ✓ Downloading gene
+==> default:   → Creating virtual disk
+==> default:   • Created VirtualDisk: disk-789
+==> default:   ✓ Creating virtual disk
+==> default:   → Creating catlet
+==> default:   • Created Catlet: catlet-abc
+==> default:   ✓ Creating catlet
+==> default: Operation completed successfully
+```
 
 #### Resource Management
 - CPU/memory allocation validation
@@ -271,7 +308,7 @@ end
 
 This knowledge base provides the essential technical context for working with Eryph and the Vagrant plugin across chat sessions.
 
-## SSH Key Injection and Connection Issues - RESOLVED
+## SSH Key Injection and Connection Issues - RESOLVED ✅
 
 ### Root Causes Identified and Fixed:
 
@@ -437,4 +474,87 @@ For full integration tests to run (not be skipped), you need:
 - **Vagrant not found**: Use Command Prompt or PowerShell instead of Git Bash
 - **Integration tests skipped**: Configure Eryph client or ensure eryph-zero is running
 - **Generated compute client warning**: Run `generate.ps1` to regenerate API client if needed
+
+# Test-Driven Development (TDD) Approach - 2025-01-31
+
+## Mandatory TDD Process - EVERY BUG FIX MUST HAVE A FAILING TEST FIRST
+
+### The TDD Cycle
+
+1. **Write a failing test** that demonstrates the bug
+2. **Run the test** and confirm it fails for the right reason
+3. **Write minimal code** to make the test pass
+4. **Run all tests** to ensure no regression
+5. **Refactor** if needed while keeping tests green
+
+### Critical Bugs That Should Have Had Tests
+
+#### UNSET_VALUE Setter Bug (Fixed 2025-01-31)
+**Bug**: Ruby-style setters crashed when called before `finalize!` because `@catlet ||= {}` failed with `UNSET_VALUE` (Symbol)
+
+**Test that should have existed:**
+```ruby
+it 'handles setter methods with UNSET_VALUE' do
+  config = described_class.new
+  # Before finalize!, @catlet is UNSET_VALUE
+  expect(config.instance_variable_get(:@catlet)).to eq(UNSET_VALUE)
+  
+  # This would crash without the fix
+  config.parent = "dbosoft/ubuntu-22.04/latest"
+  config.cpus = 2
+  
+  # Should work after fix
+  expect(config.parent).to eq("dbosoft/ubuntu-22.04/latest")
+  expect(config.cpus).to eq(2)
+end
+```
+
+#### Configuration Name Default Bug (Fixed 2025-01-31)
+**Bug**: `configuration_name` defaulted to `'default'` instead of `nil`, causing Ruby client issues
+
+**Test that should have existed:**
+```ruby
+it 'defaults configuration_name to nil not default string' do
+  config = described_class.new
+  config.finalize!
+  
+  # Should be nil for automatic credential discovery
+  expect(config.configuration_name).to be_nil
+end
+```
+
+### TDD Implementation Rules
+
+#### For ALL Bug Fixes:
+1. **Before touching production code**, write a test that reproduces the bug
+2. **Run the test** - it must FAIL for the right reason
+3. **Fix the bug** with minimal code changes
+4. **Run the test again** - it must now PASS
+5. **Run full test suite** - no regressions allowed
+
+### New Test Strategy (2025-01-31)
+
+#### Unit Tests with Vagrant Simulation
+- Use realistic Vagrant mock with CORRECT constants (`UNSET_VALUE = :__UNSET__VALUE__`)
+- Test real behavior, not mocked responses  
+- Focus on configuration bugs, state management, error handling
+- NO environment dependencies
+
+#### E2E Tests with Real Environment
+- Execute actual `vagrant` commands
+- Test complete deployment lifecycle
+- **FAIL when dependencies missing** (no environment checks!)
+- Assume Vagrant + Eryph + plugin are ready
+
+#### NO Integration Tests
+Integration tests without real components test nothing meaningful - they verify mocks work with mocks.
+
+### Test Commands
+```bash
+rake unit    # Fast unit tests with simulation
+rake e2e     # Full E2E tests (assumes environment ready)  
+rake install # Build and install plugin for E2E testing
+```
+
+This TDD approach ensures every bug gets caught by automated tests, preventing regression and building confidence in the codebase.
 

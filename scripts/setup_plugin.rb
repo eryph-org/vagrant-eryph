@@ -82,7 +82,7 @@ class VagrantPluginSetup
     
     # Also clean up dependencies if needed (for fresh install)
     puts "  Checking for existing Eryph dependencies..."
-    dependencies = ['eryph-compute-client', 'eryph-clientruntime']
+    dependencies = ['eryph-compute', 'eryph-clientruntime']
     dependencies.each do |dep|
       if result.include?(dep)
         puts "  Uninstalling #{dep}..."
@@ -119,7 +119,7 @@ class VagrantPluginSetup
     # Install dependencies in order
     dependencies = [
       'eryph-clientruntime-0.1.1.gem',
-      'eryph-compute-client-0.1.1.gem'
+      'eryph-compute-0.1.1.gem'
     ]
     
     dependencies.each do |gem_file|

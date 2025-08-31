@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob('lib/**/*') + %w[README.md LICENSE vagrant-eryph.gemspec]
   spec.require_paths = ['lib']
   
-  spec.add_dependency 'eryph-compute-client', '~> 0.1'
+  spec.add_dependency 'eryph-compute', '~> 0.1.1'
   spec.add_dependency 'eryph-clientruntime', '~> 0.1'
   
   spec.add_development_dependency 'bundler', '~> 2.0'

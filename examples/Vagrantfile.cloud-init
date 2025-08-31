@@ -1,0 +1,31 @@
+# Example using Vagrant's cloud-init configuration
+# This demonstrates automatic conversion to Eryph fodder
+Vagrant.configure("2") do |config|
+  config.vm.provider :eryph do |eryph|
+    eryph.catlet = {
+      parent: "dbosoft/ubuntu-22.04/latest"
+    }
+  end
+
+  # Vagrant cloud-init configuration (will be converted to Eryph fodder)
+  config.vm.cloud_init :user_data, 
+    content_type: "text/cloud-config",
+    inline: <<~CLOUD_CONFIG
+      #cloud-config
+      packages:
+        - git
+        - curl
+        - vim
+      runcmd:
+        - echo "Configured via Vagrant cloud-init" >> /var/log/cloud-init-output.log
+    CLOUD_CONFIG
+
+  # Additional shell script via cloud-init
+  config.vm.cloud_init :user_data,
+    content_type: "text/x-shellscript", 
+    inline: <<~SCRIPT
+      #!/bin/bash
+      echo "Hello from shell script via cloud-init!" >> /var/log/setup.log
+      whoami >> /var/log/setup.log
+    SCRIPT
+end

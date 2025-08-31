@@ -23,9 +23,21 @@ module VagrantPlugins
           if fodder.any?
             ui.info("Generated #{fodder.length} cloud-init fodder entries")
             
-            # Log fodder details
+            # Log fodder details with content
             fodder.each do |item|
               ui.info("  - #{item[:name]} (#{item[:type]})")
+              
+              # Show the actual content for debugging
+              if item[:content].is_a?(Hash)
+                ui.info("    Content (YAML):")
+                require 'yaml'
+                content_yaml = item[:content].to_yaml
+                content_yaml.lines.each { |line| ui.info("      #{line.chomp}") }
+              elsif item[:content].is_a?(String)
+                ui.info("    Content (String):")
+                item[:content].lines.first(10).each { |line| ui.info("      #{line.chomp}") }
+                ui.info("      ... (truncated)") if item[:content].lines.length > 10
+              end
             end
           else
             ui.info("No cloud-init configuration generated")

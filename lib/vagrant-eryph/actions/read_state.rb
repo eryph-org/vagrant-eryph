@@ -34,11 +34,11 @@ module VagrantPlugins
           case eryph_status.downcase
           when 'running'
             :running
-          when 'stopped', 'stopping'
+          when 'stopped'
             :stopped
-          when 'starting'
-            :starting
-          when 'error', 'failed'
+          when 'pending'
+            :unknown
+          when 'error'
             :error
           else
             :unknown

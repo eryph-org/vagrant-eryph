@@ -26,12 +26,17 @@ module VagrantPlugins
           operation_result = client.create_catlet(catlet_config)
 
           # Store the catlet ID from the operation result
-          # The client now finds the catlet by name after creation completes
-          if operation_result && operation_result.respond_to?(:catlet_id)
-            env[:machine].id = operation_result.catlet_id
-            ui.info("Catlet provisioned successfully with ID: #{operation_result.catlet_id}")
+          # The client handles creation and starting, now extract the catlet
+          if operation_result && operation_result.completed?
+            catlet = operation_result.catlet
+            if catlet
+              env[:machine].id = catlet.id
+              ui.info("Catlet provisioned successfully with ID: #{catlet.id}")
+            else
+              raise "Failed to get catlet from operation result"
+            end
           else
-            raise "Failed to get catlet ID from operation result"
+            raise "Catlet creation failed"
           end
 
           @app.call(env)
