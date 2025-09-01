@@ -1,10 +1,21 @@
-# Windows Server catlet example - using new Ruby-style syntax
-Vagrant.configure("2") do |config|
+# Windows catlet example with WinRM communicator
+Vagrant.configure("2") do |config|  
   config.vm.provider :eryph do |eryph|
     # Minimal Windows configuration
     eryph.parent = "dbosoft/winsrv2022-standard/latest"
-    eryph.configuration_name = "zero"  # Use 'zero' configuration
+    
   end
   
+  # this is important to configure the correct 
+  # credentials for windows
   config.vm.guest = :windows
+  
+  # WinRM configuration for Windows catlets (HTTPS with self signed cert)
+  config.vm.communicator = :winrm
+  config.winrm.username = "vagrant"
+  config.winrm.password = "InitialPassw0rd"
+  config.winrm.port = 5986
+  config.winrm.transport = :ssl
+  config.winrm.ssl_peer_verification = false
+  config.winrm.basic_auth_only = true
 end

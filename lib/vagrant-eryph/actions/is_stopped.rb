@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     module Actions
       class IsStopped
-        def initialize(app, env)
+        def initialize(app, _env)
           @app = app
         end
 

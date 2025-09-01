@@ -66,7 +66,7 @@ lib/vagrant-eryph/
 - Handles action chain execution
 
 #### Configuration Class (`config.rb`)
-- **Required settings**: `project`, `parent_gene`
+- **Required settings**: `project`, `parent`
 - **Auto-config options**: `auto_config`, `enable_winrm`, `vagrant_password`
 - **Resources**: `cpu`, `memory`, `drives`, `networks`
 - **Custom setup**: `fodder` array for cloud-init
@@ -112,7 +112,7 @@ lib/vagrant-eryph/
 ```ruby
 config.vm.provider :eryph do |eryph|
   eryph.project = "my-project"
-  eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
+  eryph.parent = "dbosoft/ubuntu-22.04/latest"
   eryph.auto_config = true
   # Uses new eryph-compute client with zero-config authentication
 end
@@ -122,7 +122,7 @@ end
 ```ruby
 config.vm.provider :eryph do |eryph|
   eryph.project = "my-project"
-  eryph.parent_gene = "dbosoft/winsrv2022-standard/latest"
+  eryph.parent = "dbosoft/winsrv2022-standard/latest"
   eryph.enable_winrm = true
   eryph.vagrant_password = "SecureP@ss123"
 end
@@ -137,7 +137,7 @@ config.vm.guest = :windows
 ```ruby
 config.vm.provider :eryph do |eryph|
   eryph.project = "my-project"
-  eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
+  eryph.parent = "dbosoft/ubuntu-22.04/latest"
   
   # Client authentication options (updated for new client)
   eryph.client_id = "my-client-id"              # Optional: specific client ID  

@@ -1,0 +1,86 @@
+# RuboCop configuration for Vagrant Eryph Plugin
+#
+# See https://docs.rubocop.org/rubocop/configuration
+
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+
+# Disable some cops that don't fit Vagrant plugin patterns
+Style/Documentation:
+  Enabled: false  # Don't require class documentation for every class
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+# Allow long lines for SSH keys and readability
+Layout/LineLength:
+  Max: 130
+  AllowedPatterns:
+    - 'ssh-rsa'  # SSH keys can be very long
+
+Metrics/MethodLength:
+  Max: 50  # Allow longer methods for complex operations
+
+Metrics/ClassLength:
+  Max: 350  # Config classes can be very large
+
+Metrics/ModuleLength:
+  Max: 200  # Allow large modules for action definitions
+
+Metrics/AbcSize:
+  Max: 75  # Allow complex assignment/branch/condition (finalize! methods are complex)
+
+# Allow complex finalize! methods (Vagrant config pattern)
+Metrics/CyclomaticComplexity:
+  Max: 35
+
+Metrics/PerceivedComplexity:
+  Max: 35
+
+# Allow longer blocks for action chains
+Metrics/BlockLength:
+  Enabled: false
+
+# Allow empty rescue for graceful error handling
+Lint/SuppressedException:
+  Enabled: false
+
+# Allow OpenStruct for simple data structures
+Style/OpenStructUse:
+  Enabled: false
+
+# Allow missing super in initialize (Vagrant pattern)
+Lint/MissingSuper:
+  Enabled: false
+
+# Allow empty else for guard clauses
+Style/EmptyElse:
+  Enabled: false
+
+# Allow duplicate branch bodies in case statements
+Lint/DuplicateBranch:
+  Enabled: false
+
+# Don't enforce file naming convention (vagrant-eryph.rb is required)
+Naming/FileName:
+  Enabled: false
+
+# Allow method names that follow external API conventions
+Naming/AccessorMethodName:
+  Enabled: false
+
+# Allow predicate method names that follow external conventions  
+Naming/PredicateMethod:
+  Enabled: false
+
+Naming/PredicatePrefix:
+  Enabled: false
+
+# Allow useless private scope for constants (Vagrant pattern)
+Lint/UselessConstantScoping:
+  Enabled: false
+
+# Allow single-line conditional modifiers
+Style/IfUnlessModifier:
+  Enabled: false

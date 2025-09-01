@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     module Actions
       class ReadState
-        def initialize(app, env)
+        def initialize(app, _env)
           @app = app
         end
 
@@ -18,13 +20,13 @@ module VagrantPlugins
 
           begin
             catlet = Provider.eryph_catlet(env[:machine], refresh: true)
-            
-            if catlet && catlet.respond_to?(:status) && catlet.status
+
+            if catlet.respond_to?(:status) && catlet.status
               map_catlet_state_to_vagrant(catlet.status)
             else
               :not_created
             end
-          rescue => e
+          rescue StandardError => e
             env[:ui].warn("Error reading catlet state: #{e.message}")
             :unknown
           end

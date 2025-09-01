@@ -119,7 +119,7 @@ client.get_catlet(catlet_id)
 client.create_catlet({
   name: "catlet-name",
   project: "project-name",
-  parent_gene: "dbosoft/ubuntu-22.04/latest",
+  parent: "dbosoft/ubuntu-22.04/latest",
   cpu: 2,
   memory: 2048,
   drives: [...],
@@ -155,7 +155,7 @@ Common error scenarios:
 ```ruby
 config.vm.provider :eryph do |eryph|
   eryph.project = "development"
-  eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
+  eryph.parent = "dbosoft/ubuntu-22.04/latest"
   eryph.auto_config = true
   eryph.cpu = 2
   eryph.memory = 2048
@@ -166,7 +166,7 @@ end
 ```ruby
 config.vm.provider :eryph do |eryph|
   eryph.project = "windows-dev"
-  eryph.parent_gene = "dbosoft-winsrv2022-standard/latest" 
+  eryph.parent = "dbosoft/winsrv2022-standard/latest" 
   eryph.enable_winrm = true
   eryph.vagrant_password = "SecureP@ss123"
   eryph.cpu = 4
@@ -240,7 +240,7 @@ eryph.networks = [
 config.vm.define "web" do |web|
   web.vm.provider :eryph do |eryph|
     eryph.project = "webapp"
-    eryph.parent_gene = "dbosoft/ubuntu-22.04/latest"
+    eryph.parent = "dbosoft/ubuntu-22.04/latest"
   end
 end
 
@@ -248,7 +248,7 @@ end
 config.vm.define "db" do |db|
   db.vm.provider :eryph do |eryph|
     eryph.project = "webapp"
-    eryph.parent_gene = "dbosoft-winsrv2022-standard/latest"
+    eryph.parent = "dbosoft/winsrv2022-standard/latest"
     eryph.enable_winrm = true
   end
 end

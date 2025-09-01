@@ -1,20 +1,22 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     module Errors
       class EryphError < Vagrant::Errors::VagrantError
         attr_reader :problem_details
-        
+
         def initialize(message = nil, problem_details = nil)
           @problem_details = problem_details
           super(message)
         end
-        
-        error_namespace("vagrant_eryph.errors")
-        
+
+        error_namespace('vagrant_eryph.errors')
+
         def has_problem_details?
           !@problem_details.nil?
         end
-        
+
         def friendly_message
           if has_problem_details? && @problem_details.respond_to?(:friendly_message)
             @problem_details.friendly_message
@@ -43,7 +45,7 @@ module VagrantPlugins
       class ConfigurationError < EryphError
         error_key(:configuration_error)
       end
-      
+
       # Helper method to convert API errors to our enhanced errors
       def self.from_api_error(api_error, error_class = EryphError)
         if api_error.is_a?(::Eryph::Compute::ProblemDetailsError)

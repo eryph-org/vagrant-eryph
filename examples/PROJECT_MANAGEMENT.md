@@ -44,7 +44,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider :eryph do |eryph|
     eryph.project = "non-existent-project"    # Will be created automatically
     eryph.auto_create_project = true          # Default: true
-    eryph.parent_gene = "dbosoft/ubuntu:22.04"
+    eryph.parent = "dbosoft/ubuntu-22.04/latest"
   end
 end
 ```
@@ -56,7 +56,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider :eryph do |eryph|
     eryph.project = "existing-project"        # Must exist
     eryph.auto_create_project = false         # Disable auto-creation
-    eryph.parent_gene = "dbosoft/ubuntu:22.04"
+    eryph.parent = "dbosoft/ubuntu-22.04/latest"
   end
 end
 ```
@@ -93,7 +93,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "web" do |web|
     web.vm.provider :eryph do |eryph|
       eryph.project = project_name
-      eryph.parent_gene = "dbosoft/ubuntu:22.04"
+      eryph.parent = "dbosoft/ubuntu-22.04/latest"
       eryph.auto_create_project = true  # Only first machine needs to create
     end
   end
@@ -102,7 +102,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "db" do |db|
     db.vm.provider :eryph do |eryph|
       eryph.project = project_name        # Same project
-      eryph.parent_gene = "dbosoft/postgresql:15"
+      eryph.parent = "dbosoft/winsrv2022-standard/latest"
       eryph.auto_create_project = false   # Project should exist by now
     end
   end

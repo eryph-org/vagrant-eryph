@@ -32,25 +32,26 @@ RSpec.describe VagrantPlugins::Eryph::Config do
     end
     
     it 'follows real Vagrant finalize lifecycle' do
-      result = simulate_vagrant_lifecycle(described_class)
+      config = described_class.new
+      # Set required field to create valid minimal config
+      config.parent = "dbosoft/ubuntu-22.04/latest"
       
-      config = result[:config]
-      machine = result[:machine]
-      errors = result[:errors]
+      config.finalize!
       
       # After finalize!, UNSET_VALUE fields should be set to defaults
       expect(config.configuration_name).to be_nil  # We fixed this - was 'default'
       expect(config.auto_config).to be(true)
       expect(config.project).to eq('default')
       
-      # Should have no validation errors with defaults
+      # Should have no validation errors with minimal valid config
+      machine = create_machine
       expect_no_validation_errors(config, machine)
     end
     
     it 'validates required configuration correctly' do
       config = described_class.new
       # Don't set parent - this should cause validation error
-      config.parent_gene = nil  # Explicitly set to nil 
+      config.parent = nil  # Explicitly set to nil 
       config.catlet = {}        # Empty catlet (no parent)
       config.finalize!
       
@@ -94,9 +95,9 @@ RSpec.describe VagrantPlugins::Eryph::Config do
       drives = effective_config[:drives]
       expect(drives).to include({ name: "system", size: 100, type: "SharedVHD" })
       
-      # Should have gene configuration
-      genes = effective_config[:genes]
-      expect(genes).to include({ name: "gene:dbosoft/guest-services:windows-install" })
+      # Should have gene configuration stored separately
+      genes = config.instance_variable_get(:@genes)
+      expect(genes).to include({ source: "gene:dbosoft/guest-services:windows-install" })
       
       expect_no_validation_errors(config, machine)
     end

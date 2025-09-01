@@ -23,7 +23,7 @@ gem install vagrant-eryph
 Vagrant.configure("2") do |config|
   config.vm.provider :eryph do |eryph|
     eryph.project = "my-project"
-    eryph.parent_gene = "dbosoft/ubuntu:22.04"
+    eryph.parent = "dbosoft/ubuntu-22.04/latest"
     eryph.auto_config = true  # Enable automatic Vagrant user setup
   end
 end
@@ -33,7 +33,7 @@ end
 
 ### Basic Settings
 - `project` - Eryph project name
-- `parent_gene` - Parent gene for the catlet
+- `parent` - Parent gene for the catlet
 - `auto_create_project` - Auto-create project if it doesn't exist (default: true)
 
 ### Auto-configuration

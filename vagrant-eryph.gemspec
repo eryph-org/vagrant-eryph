@@ -18,6 +18,7 @@ Gem::Specification.new do |spec|
   
   spec.add_dependency 'eryph-compute', '~> 0.1.1'
   spec.add_dependency 'eryph-clientruntime', '~> 0.1'
+  spec.add_dependency 'log4r', '~> 1.1'
   
   spec.add_development_dependency 'bundler', '~> 2.0'
   spec.add_development_dependency 'rake', '~> 13.0'

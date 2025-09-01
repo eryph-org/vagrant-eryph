@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     module Actions
       class IsCreated
-        def initialize(app, env)
+        def initialize(app, _env)
           @app = app
         end
 
@@ -20,8 +22,8 @@ module VagrantPlugins
 
           begin
             catlet = Provider.eryph_catlet(env[:machine])
-            catlet && catlet.respond_to?(:status) && catlet.status != 'not_created'
-          rescue => e
+            catlet.respond_to?(:status) && catlet.status != 'not_created'
+          rescue StandardError => e
             env[:ui].warn("Error checking catlet existence: #{e.message}")
             false
           end

@@ -2,7 +2,7 @@ en:
   vagrant_eryph:
     errors:
       api_connection_failed: |-
-        Failed to connect to Eryph API. Please check your network connection
+        Failed to connect to eryph. Please check your network connection
         and Eryph service status.
       credentials_not_found: |-
         Eryph credentials not found. Please configure your credentials using

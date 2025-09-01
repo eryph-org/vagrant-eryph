@@ -1,31 +1,18 @@
 # Gene management example - using add_fodder_gene helper
 # This demonstrates how to work with Eryph's gene system
 
-Vagrant.configure("2") do |config|
-  config.vm.define "app-server" do |app|
-    app.vm.provider :eryph do |eryph|
-      # Base parent catlet
-      eryph.parent = "dbosoft/ubuntu-22.04/latest"
-      eryph.project = "web-apps"
+Vagrant.configure("2") do |config|  
+  config.vm.provider :eryph do |eryph|
+    eryph.parent = "dbosoft/ubuntu-22.04/latest"
+
+    # Add guest services gene (from genepool.eryph.io)
+    eryph.add_fodder_gene "dbosoft/guest-services", "linux-install"
       
-      # Basic configuration
-      eryph.cpus = 2
-      eryph.memory = 2048
-      eryph.vmname = "app-server"
-      
-      # Add guest services gene (from genepool.eryph.io)
-      eryph.add_fodder_gene "dbosoft/guest-services", "linux-install"
-      
-      # Add another gene with variables
-      eryph.add_fodder_gene "mycompany/nodejs-app", 
-        variables: [
-          { name: "app_version", type: "string", value: "18.x" },
-          { name: "environment", type: "string", value: "production" }
-        ]
-      
-      # Storage setup
-      eryph.add_drive "sda", size: 50   # OS
-      eryph.add_drive "sdb", size: 100  # Application data
-    end
+    # Add another gene with variables
+    # eryph.add_fodder_gene "mycompany/nodejs-app", 
+    # variables: [
+    #    { name: "app_version", type: "string", value: "18.x" },
+    #    { name: "environment", type: "string", value: "production" }
+    # ]
   end
 end

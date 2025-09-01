@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'optparse'
 
 module VagrantPlugins
@@ -24,6 +26,7 @@ module VagrantPlugins
         # then we also just print the help and exit.
         command_class = @subcommands.get(@sub_command.to_sym) if @sub_command
         return help if !command_class || !@sub_command
+
         @logger.debug("Invoking command class: #{command_class} #{@sub_args.inspect}")
 
         # Initialize and execute the command class
@@ -39,7 +42,7 @@ module VagrantPlugins
           # Add the available subcommands as separators in order to print them
           # out as well.
           keys = []
-          @subcommands.each { |key, _value| keys << key.to_s }
+          @subcommands.each_key { |key| keys << key.to_s }
 
           keys.sort.each do |key|
             o.separator "     #{key}"
@@ -88,7 +91,7 @@ module VagrantPlugins
           execute_show
         else
           @env.ui.info(@parser.help, prefix: false)
-          return 1
+          1
         end
       end
 
@@ -100,19 +103,19 @@ module VagrantPlugins
           o.separator ''
           o.separator 'Options:'
           o.separator ''
-          
+
           o.on('--add NETWORK', String, 'Add network to project') do |network|
             @options[:add_network] = network
           end
-          
+
           o.on('--remove NETWORK', String, 'Remove network from project') do |network|
             @options[:remove_network] = network
           end
-          
+
           o.on('--list', 'List project networks') do
             @options[:list_networks] = true
           end
-          
+
           o.on('-h', '--help', 'Show this help') do
             @env.ui.info(o.help, prefix: false)
             return 0
@@ -121,7 +124,7 @@ module VagrantPlugins
 
         # Parse the options
         argv = parse_options(parser)
-        return if !argv
+        return unless argv
 
         if argv.empty?
           @env.ui.error('Project name is required')
@@ -150,10 +153,10 @@ module VagrantPlugins
 
       def execute_list
         client = get_eryph_client
-        
+
         @env.ui.info('Available Eryph projects:', prefix: false)
         projects = client.list_projects
-        
+
         if projects.empty?
           @env.ui.warn('No projects found')
         else
@@ -171,14 +174,14 @@ module VagrantPlugins
           o.separator ''
           o.separator 'Options:'
           o.separator ''
-          
+
           o.on('--description DESC', String, 'Project description') do |desc|
             @options[:description] = desc
           end
         end
 
         argv = parse_options(parser)
-        return if !argv
+        return unless argv
 
         if argv.empty?
           @env.ui.error('Project name is required')
@@ -190,21 +193,21 @@ module VagrantPlugins
         client = get_eryph_client
 
         @env.ui.info("Creating project: #{project_name}")
-        
+
         # Create project with custom description if provided
         project_request = {
           name: project_name,
-          description: @options[:description] || "Created via Vagrant Eryph plugin"
+          description: @options[:description] || 'Created via Vagrant Eryph plugin'
         }
-        
+
         begin
-          operation = client.client.projects.projects_create({new_project_request: project_request})
-          if operation && operation.id
+          operation = client.client.projects.projects_create({ new_project_request: project_request })
+          if operation&.id
             @env.ui.info("Project creation initiated (Operation ID: #{operation.id})")
             client.wait_for_operation(operation.id)
             @env.ui.info("Project '#{project_name}' created successfully")
           end
-        rescue => e
+        rescue StandardError => e
           @env.ui.error("Failed to create project: #{e.message}")
           return 1
         end
@@ -214,7 +217,7 @@ module VagrantPlugins
 
       def execute_show
         argv = parse_options
-        return if !argv
+        return unless argv
 
         if argv.empty?
           @env.ui.error('Project name is required')
@@ -229,10 +232,10 @@ module VagrantPlugins
           if project
             @env.ui.info("Project: #{project.name}", prefix: false)
             @env.ui.info("Description: #{project.description || 'N/A'}", prefix: false)
-            
+
             # Show project networks if available
             if project.respond_to?(:networks) && project.networks
-              @env.ui.info("Networks:", prefix: false)
+              @env.ui.info('Networks:', prefix: false)
               project.networks.each do |network|
                 @env.ui.info("  - #{network.name}", prefix: false)
               end
@@ -241,7 +244,7 @@ module VagrantPlugins
             @env.ui.error("Project '#{project_name}' not found")
             return 1
           end
-        rescue => e
+        rescue StandardError => e
           @env.ui.error("Failed to get project: #{e.message}")
           return 1
         end
@@ -253,9 +256,7 @@ module VagrantPlugins
         # Try to get client from existing machines
         @env.machine_names.each do |name|
           machine = @env.machine(name, :eryph)
-          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
-            return Helpers::EryphClient.new(machine)
-          end
+          return Helpers::EryphClient.new(machine) if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
         end
 
         # If no Eryph machines found, create a basic client with default config
@@ -265,47 +266,45 @@ module VagrantPlugins
       end
 
       def list_project_networks(client, project_name)
-        begin
-          project = client.get_project(project_name)
-          if project
-            @env.ui.info("Networks for project '#{project_name}':", prefix: false)
-            
-            if project.respond_to?(:networks) && project.networks && project.networks.any?
-              project.networks.each do |network|
-                @env.ui.info("  - #{network.name}", prefix: false)
-              end
-            else
-              @env.ui.info("  No networks configured", prefix: false)
+        project = client.get_project(project_name)
+        if project
+          @env.ui.info("Networks for project '#{project_name}':", prefix: false)
+
+          if project.respond_to?(:networks) && project.networks&.any?
+            project.networks.each do |network|
+              @env.ui.info("  - #{network.name}", prefix: false)
             end
           else
-            @env.ui.error("Project '#{project_name}' not found")
+            @env.ui.info('  No networks configured', prefix: false)
           end
-        rescue => e
-          @env.ui.error("Failed to list project networks: #{e.message}")
+        else
+          @env.ui.error("Project '#{project_name}' not found")
         end
+      rescue StandardError => e
+        @env.ui.error("Failed to list project networks: #{e.message}")
       end
 
-      def add_project_network(client, project_name, network_name)
+      def add_project_network(_client, project_name, network_name)
         @env.ui.info("Adding network '#{network_name}' to project '#{project_name}'...")
-        
+
         begin
           # This would need to be implemented based on the actual Eryph API
           # for updating project network configurations
-          @env.ui.warn("Network configuration API not yet implemented")
+          @env.ui.warn('Network configuration API not yet implemented')
           @env.ui.info("Would add network: #{network_name}")
-        rescue => e
+        rescue StandardError => e
           @env.ui.error("Failed to add network: #{e.message}")
         end
       end
 
-      def remove_project_network(client, project_name, network_name)
+      def remove_project_network(_client, project_name, network_name)
         @env.ui.info("Removing network '#{network_name}' from project '#{project_name}'...")
-        
+
         begin
           # This would need to be implemented based on the actual Eryph API
-          @env.ui.warn("Network configuration API not yet implemented")
+          @env.ui.warn('Network configuration API not yet implemented')
           @env.ui.info("Would remove network: #{network_name}")
-        rescue => e
+        rescue StandardError => e
           @env.ui.error("Failed to remove network: #{e.message}")
         end
       end

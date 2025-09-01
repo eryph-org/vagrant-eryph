@@ -1,8 +1,18 @@
-# Ubuntu Linux catlet example - using new Ruby-style syntax
+# Gene management example - using add_fodder_gene helper
+# This demonstrates how to work with Eryph's gene system
+
 Vagrant.configure("2") do |config|  
   config.vm.provider :eryph do |eryph|
-    # Ultra-minimal configuration - only parent is required
     eryph.parent = "dbosoft/ubuntu-22.04/latest"
-    # project defaults to "default", all other settings use sensible defaults
+
+    # Add guest services gene (from genepool.eryph.io)
+    eryph.add_fodder_gene "dbosoft/guest-services", "linux-install"
+      
+    # Add another gene with variables
+    # eryph.add_fodder_gene "mycompany/nodejs-app", 
+    # variables: [
+    #    { name: "app_version", type: "string", value: "18.x" },
+    #    { name: "environment", type: "string", value: "production" }
+    # ]
   end
 end

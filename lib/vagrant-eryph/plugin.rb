@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     class Plugin < Vagrant.plugin('2')

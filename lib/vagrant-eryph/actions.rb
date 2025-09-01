@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module VagrantPlugins
   module Eryph
     module Actions
@@ -180,7 +182,7 @@ module VagrantPlugins
               if env2[:result]
                 b3.use action_up
               else
-                # TODO we couldn't reach :stopped, what now?
+                # TODO: we couldn't reach :stopped, what now?
               end
             end
           end
@@ -188,7 +190,7 @@ module VagrantPlugins
       end
 
       # The autoload farm
-      action_root = Pathname.new(File.expand_path('../actions', __FILE__))
+      action_root = Pathname.new(File.expand_path('actions', __dir__))
       autoload :ConnectEryph, action_root.join('connect_eryph')
       autoload :IsCreated, action_root.join('is_created')
       autoload :IsStopped, action_root.join('is_stopped')

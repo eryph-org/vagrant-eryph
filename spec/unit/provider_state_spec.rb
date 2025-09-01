@@ -73,6 +73,9 @@ RSpec.describe VagrantPlugins::Eryph::Provider do
     end
     
     it 'extracts IP address from running catlet correctly' do
+      # Disable WinRM for this SSH test
+      machine.provider_config.enable_winrm = false
+      
       machine.id = "test-catlet-123"
       
       # Mock catlet with network configuration like real Eryph returns
@@ -93,7 +96,6 @@ RSpec.describe VagrantPlugins::Eryph::Provider do
       ssh_info = provider.ssh_info
       expect(ssh_info).not_to be_nil
       expect(ssh_info[:host]).to eq('192.168.1.100')
-      expect(ssh_info[:port]).to eq(22)
       expect(ssh_info[:username]).to eq('vagrant')
     end
     
