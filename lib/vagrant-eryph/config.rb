@@ -412,6 +412,27 @@ module VagrantPlugins
       end
 
       # ============================================================
+      # VARIABLE MANAGEMENT
+      # ============================================================
+
+      def set_variable(name, value)
+        @variables = [] if @variables == UNSET_VALUE
+        
+        # Find existing variable or create new one
+        var = @variables.find { |v| v[:name] == name }
+        if var
+          # Update existing variable's value
+          var[:value] = value
+        else
+          # Create new variable with value (no type inference - must be declared separately)
+          @variables << { 
+            name: name, 
+            value: value
+          }
+        end
+      end
+
+      # ============================================================
       # FODDER HELPERS
       # ============================================================
 

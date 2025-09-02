@@ -101,6 +101,51 @@ RSpec.describe VagrantPlugins::Eryph::Config do
       
       expect_no_validation_errors(config, machine)
     end
+
+    it 'handles variable declaration and filling correctly' do
+      config = described_class.new
+      
+      # Set required parent
+      config.parent = "dbosoft/ubuntu-22.04/latest"
+      
+      # Declare variables with types
+      config.variables = [
+        { name: "port", type: "number" },
+        { name: "debug", type: "boolean" },
+        { name: "environment", type: "string" }
+      ]
+      
+      # Fill variable values
+      config.set_variable("port", 8080)
+      config.set_variable("debug", true)
+      config.set_variable("environment", "production")
+      
+      config.finalize!
+      
+      # Check that variables have both declarations and values
+      expect(config.variables).to include({ name: "port", type: "number", value: 8080 })
+      expect(config.variables).to include({ name: "debug", type: "boolean", value: true })
+      expect(config.variables).to include({ name: "environment", type: "string", value: "production" })
+      
+      expect_no_validation_errors(config, create_machine)
+    end
+    
+    it 'handles setting variables without prior declaration' do
+      config = described_class.new
+      
+      # Set required parent
+      config.parent = "dbosoft/ubuntu-22.04/latest"
+      
+      # Set variable without declaring first
+      config.set_variable("undeclared_var", "test_value")
+      
+      config.finalize!
+      
+      # Should create variable with just name and value (no type)
+      expect(config.variables).to include({ name: "undeclared_var", value: "test_value" })
+      
+      expect_no_validation_errors(config, create_machine)
+    end
   end
   
   describe 'error conditions that should have failing tests' do
