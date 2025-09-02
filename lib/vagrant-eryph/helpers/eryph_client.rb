@@ -3,12 +3,25 @@
 require 'eryph'
 require 'set'
 require 'log4r'
+require 'yaml'
 require_relative '../errors'
 
 module VagrantPlugins
   module Eryph
     module Helpers
       class EryphClient
+        # Permission scopes for minimal access
+        SCOPES = {          
+          # Catlet-specific scopes
+          CATLETS_READ: 'compute:catlets:read',
+          CATLETS_WRITE: 'compute:catlets:write',
+          CATLETS_CONTROL: 'compute:catlets:control',
+          
+          # Project-specific scopes
+          PROJECTS_READ: 'compute:projects:read',
+          PROJECTS_WRITE: 'compute:projects:write'
+        }.freeze
+
         def initialize(machine)
           @machine = machine
           @config = machine.provider_config
@@ -17,16 +30,21 @@ module VagrantPlugins
           @logger = Log4r::Logger.new('vagrant::eryph::client')
         end
 
-        def client
-          return @client if @client
-
-          @client = create_client
+        def client(scopes = nil)
+          # Create a new client if scopes changed or client doesn't exist
+          requested_scopes = scopes || [SCOPES[:CATLETS_WRITE], SCOPES[:PROJECTS_WRITE]]
+          
+          if @client.nil? || @last_scopes != requested_scopes
+            @client = create_client(requested_scopes)
+            @last_scopes = requested_scopes
+          end
+          
           @client
         end
 
         def list_catlets
           handle_api_errors do
-            response = client.catlets.catlets_list
+            response = client([SCOPES[:CATLETS_READ]]).catlets.catlets_list
             # CatletList object contains 'value' array with actual catlets
             response.respond_to?(:value) ? response.value : []
           end
@@ -36,7 +54,7 @@ module VagrantPlugins
 
         def get_catlet(catlet_id)
           handle_api_errors do
-            client.catlets.catlets_get(catlet_id)
+            client([SCOPES[:CATLETS_READ]]).catlets.catlets_get(catlet_id)
           end
         rescue Errors::EryphError
           nil # Return nil on errors to allow graceful handling
@@ -54,7 +72,7 @@ module VagrantPlugins
             configuration: catlet_config_hash
           )
 
-          operation = client.catlets.catlets_create({ new_catlet_request: request_obj })
+          operation = client([SCOPES[:CATLETS_WRITE]]).catlets.catlets_create({ new_catlet_request: request_obj })
 
           raise 'Failed to create catlet: No operation returned' unless operation&.id
 
@@ -80,7 +98,7 @@ module VagrantPlugins
         def start_catlet(catlet_id)
           @logger.info("Starting catlet: #{catlet_id}")
 
-          operation = client.catlets.catlets_start(catlet_id)
+          operation = client([SCOPES[:CATLETS_CONTROL]]).catlets.catlets_start(catlet_id)
 
           raise 'Failed to start catlet: No operation returned' unless operation&.id
 
@@ -106,7 +124,7 @@ module VagrantPlugins
           stop_request = ::Eryph::ComputeClient::StopCatletRequestBody.new(
             mode: api_mode
           )
-          operation = client.catlets.catlets_stop(catlet_id, stop_request)
+          operation = client([SCOPES[:CATLETS_CONTROL]]).catlets.catlets_stop(catlet_id, stop_request)
 
           raise 'Failed to stop catlet: No operation returned' unless operation&.id
 
@@ -116,7 +134,7 @@ module VagrantPlugins
         def destroy_catlet(catlet_id)
           @logger.info("Destroying catlet: #{catlet_id}")
 
-          operation = client.catlets.catlets_delete(catlet_id)
+          operation = client([SCOPES[:CATLETS_WRITE]]).catlets.catlets_delete(catlet_id)
 
           raise 'Failed to destroy catlet: No operation returned' unless operation&.id
 
@@ -124,7 +142,7 @@ module VagrantPlugins
         end
 
         def list_projects
-          response = client.projects.projects_list
+          response = client([SCOPES[:PROJECTS_READ]]).projects.projects_list
           # Handle the response structure - ProjectList has 'value' property with array
           response.respond_to?(:value) ? response.value : response
         rescue StandardError => e
@@ -148,12 +166,24 @@ module VagrantPlugins
             name: project_name
           )
 
-          operation = client.projects.projects_create(new_project_request: project_request)
+          operation = client([SCOPES[:PROJECTS_WRITE]]).projects.projects_create(new_project_request: project_request)
 
           raise 'Failed to create project: No operation returned' unless operation&.id
 
-          @ui.info("Operation ID: #{operation.id} - Project creation initiated)")
-          wait_for_operation(operation.id)
+          @logger.info("Operation ID: #{operation.id} - Creating project...")
+          result = wait_for_operation(operation.id)
+
+          if result.completed?
+            # Use OperationResult's project accessor
+            project = result.project
+            raise "Operation ID: #{operation.id} - Project creation completed but project not found" unless project
+
+            @logger.info("Operation ID: #{operation.id} - created project with ID: #{project.id}")
+            project  # Return the project, not the result
+          else
+            error_msg = result.status_message || 'Operation failed'
+            raise "Operation ID: #{operation.id} - Project creation failed: #{error_msg}"
+          end
         end
 
         def ensure_project_exists(project_name)
@@ -167,8 +197,73 @@ module VagrantPlugins
           end
 
           @ui.info("Project '#{project_name}' not found, creating automatically...")
-          create_project(project_name)
-          get_project(project_name)
+          create_project(project_name)  # Now returns the project directly, no race condition!
+        end
+
+        def remove_project(project_name)
+          @logger.info("Removing project: #{project_name}")
+          
+          project = get_project(project_name)
+          raise "Project '#{project_name}' not found" unless project
+
+          operation = client([SCOPES[:PROJECTS_WRITE]]).projects.projects_delete(project.id)
+          raise 'Failed to remove project: No operation returned' unless operation&.id
+
+          @logger.info("Operation ID: #{operation.id} - Removing project...")
+          result = wait_for_operation(operation.id)
+
+          if result.completed?
+            @logger.info("Operation ID: #{operation.id} - project removed successfully")
+            result
+          else
+            error_msg = result.status_message || 'Operation failed'
+            raise "Operation ID: #{operation.id} - Project removal failed: #{error_msg}"
+          end
+        end
+
+        def get_network_config(project_name)
+          project = get_project(project_name)
+          raise "Project '#{project_name}' not found" unless project
+
+          response = client([SCOPES[:PROJECTS_READ]]).virtual_networks.virtual_networks_get_config(project.id)
+          response.respond_to?(:configuration) ? response.configuration : response
+        rescue StandardError => e
+          @ui.error("Failed to get network configuration for project #{project_name}: #{e.message}")
+          raise e
+        end
+
+        def set_network_config(project_name, config_yaml)
+          project = get_project(project_name)
+          raise "Project '#{project_name}' not found" unless project
+
+          # Parse YAML to hash (encoding should be handled by caller)
+          config_hash = YAML.safe_load(config_yaml)
+          
+          # Create proper VirtualNetworkConfiguration object
+          network_config = ::Eryph::ComputeClient::VirtualNetworkConfiguration.new(
+            configuration: config_hash
+          )
+
+          operation = client([SCOPES[:PROJECTS_WRITE]]).virtual_networks.virtual_networks_set_config(
+            project.id, 
+            virtual_network_configuration: network_config
+          )
+
+          raise 'Failed to set network configuration: No operation returned' unless operation&.id
+
+          @logger.info("Operation ID: #{operation.id} - Setting network configuration...")
+          result = wait_for_operation(operation.id)
+
+          if result.completed?
+            @logger.info("Operation ID: #{operation.id} - network configuration set successfully")
+            result
+          else
+            error_msg = result.status_message || 'Operation failed'
+            raise "Operation ID: #{operation.id} - Network configuration failed: #{error_msg}"
+          end
+        rescue StandardError => e
+          @ui.error("Failed to set network configuration for project #{project_name}: #{e.message}")
+          raise e
         end
 
         def validate_catlet_config(catlet_config)
@@ -176,7 +271,7 @@ module VagrantPlugins
 
           begin
             validation_result = handle_api_errors do
-              client.validate_catlet_config(catlet_config)
+              client([SCOPES[:CATLETS_READ]]).validate_catlet_config(catlet_config)
             end
 
             if validation_result.respond_to?(:is_valid) && validation_result.is_valid
@@ -205,7 +300,7 @@ module VagrantPlugins
 
           @logger.info("Waiting for operation #{operation_id}...")
 
-          result = client.wait_for_operation(operation_id, timeout: timeout) do |event_type, data|
+          result = client([SCOPES[:CATLETS_READ]]).wait_for_operation(operation_id, timeout: timeout) do |event_type, data|
             case event_type
 
             when :resource_new
@@ -258,7 +353,7 @@ module VagrantPlugins
 
         private
 
-        def create_client
+        def create_client(scopes = nil)
           config_name = @config.configuration_name
 
           # Build options for client creation
@@ -270,8 +365,8 @@ module VagrantPlugins
           ssl_config[:ca_file] = @config.ssl_ca_file if @config.ssl_ca_file
           client_options[:ssl_config] = ssl_config if ssl_config.any?
 
-          # Add scopes - request write permissions (includes read)
-          client_options[:scopes] = %w[compute:write]
+          # Add minimal scopes - use provided scopes or default to catlets+projects write
+          client_options[:scopes] = scopes || [SCOPES[:CATLETS_WRITE], SCOPES[:PROJECTS_WRITE]]
 
           # Add client_id if specified
           client_options[:client_id] = @config.client_id if @config.client_id

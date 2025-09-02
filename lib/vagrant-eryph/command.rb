@@ -1,12 +1,14 @@
 # frozen_string_literal: true
 
 require 'optparse'
+require 'yaml'
+require 'json'
 
 module VagrantPlugins
   module Eryph
     class Command < Vagrant.plugin('2', :command)
       def self.synopsis
-        'manage Eryph projects and their configurations'
+        'manage Eryph projects and network configurations'
       end
 
       def initialize(argv, env)
@@ -14,22 +16,18 @@ module VagrantPlugins
         @main_args, @sub_command, @sub_args = split_main_and_subcommand(argv)
         @subcommands = Vagrant::Registry.new
         @subcommands.register(:project) { ProjectCommand }
+        @subcommands.register(:network) { NetworkCommand }
       end
 
       def execute
         if @main_args.include?('-h') || @main_args.include?('--help')
-          # Print the help for all the eryph commands.
           return help
         end
 
-        # If we reached this far then we must have a subcommand. If not,
-        # then we also just print the help and exit.
         command_class = @subcommands.get(@sub_command.to_sym) if @sub_command
         return help if !command_class || !@sub_command
 
         @logger.debug("Invoking command class: #{command_class} #{@sub_args.inspect}")
-
-        # Initialize and execute the command class
         command_class.new(@sub_args, @env).execute
       end
 
@@ -38,16 +36,8 @@ module VagrantPlugins
           o.banner = 'Usage: vagrant eryph <subcommand> [<args>]'
           o.separator ''
           o.separator 'Available subcommands:'
-
-          # Add the available subcommands as separators in order to print them
-          # out as well.
-          keys = []
-          @subcommands.each_key { |key| keys << key.to_s }
-
-          keys.sort.each do |key|
-            o.separator "     #{key}"
-          end
-
+          o.separator '     project    Manage Eryph projects'
+          o.separator '     network    Manage project network configurations'
           o.separator ''
           o.separator 'For help on any individual subcommand run `vagrant eryph <subcommand> -h`'
         end
@@ -58,21 +48,30 @@ module VagrantPlugins
 
     class ProjectCommand < Vagrant.plugin('2', :command)
       def self.synopsis
-        'manage Eryph project settings'
+        'manage Eryph projects'
       end
 
       def initialize(argv, env)
         super
-
         @options = {}
         @parser = OptionParser.new do |o|
           o.banner = 'Usage: vagrant eryph project <subcommand> [options]'
           o.separator ''
           o.separator 'Subcommands:'
-          o.separator '     network    Configure project networks'
           o.separator '     list       List available projects'
           o.separator '     create     Create a new project'
-          o.separator '     show       Show project details'
+          o.separator '     remove     Remove a project'
+          o.separator ''
+          o.separator 'Global Options:'
+          
+          o.on('--configuration-name NAME', String, 'Eryph configuration name (default: auto-detect)') do |name|
+            @options[:configuration_name] = name
+          end
+          
+          o.on('--client-id ID', String, 'Eryph client ID') do |id|
+            @options[:client_id] = id
+          end
+          
           o.separator ''
         end
 
@@ -81,14 +80,12 @@ module VagrantPlugins
 
       def execute
         case @sub_command
-        when 'network'
-          execute_network
         when 'list'
           execute_list
         when 'create'
           execute_create
-        when 'show'
-          execute_show
+        when 'remove'
+          execute_remove
         else
           @env.ui.info(@parser.help, prefix: false)
           1
@@ -97,74 +94,18 @@ module VagrantPlugins
 
       private
 
-      def execute_network
-        parser = OptionParser.new do |o|
-          o.banner = 'Usage: vagrant eryph project network <project-name> [options]'
-          o.separator ''
-          o.separator 'Options:'
-          o.separator ''
-
-          o.on('--add NETWORK', String, 'Add network to project') do |network|
-            @options[:add_network] = network
-          end
-
-          o.on('--remove NETWORK', String, 'Remove network from project') do |network|
-            @options[:remove_network] = network
-          end
-
-          o.on('--list', 'List project networks') do
-            @options[:list_networks] = true
-          end
-
-          o.on('-h', '--help', 'Show this help') do
-            @env.ui.info(o.help, prefix: false)
-            return 0
-          end
-        end
-
-        # Parse the options
-        argv = parse_options(parser)
-        return unless argv
-
-        if argv.empty?
-          @env.ui.error('Project name is required')
-          @env.ui.info(parser.help, prefix: false)
-          return 1
-        end
-
-        project_name = argv[0]
-
-        # Get Eryph client from any provider machine or create new one
-        client = get_eryph_client
-
-        if @options[:list_networks]
-          list_project_networks(client, project_name)
-        elsif @options[:add_network]
-          add_project_network(client, project_name, @options[:add_network])
-        elsif @options[:remove_network]
-          remove_project_network(client, project_name, @options[:remove_network])
-        else
-          @env.ui.info(parser.help, prefix: false)
-          return 1
-        end
-
-        0
-      end
-
       def execute_list
         client = get_eryph_client
-
         @env.ui.info('Available Eryph projects:', prefix: false)
+        
         projects = client.list_projects
-
         if projects.empty?
           @env.ui.warn('No projects found')
         else
           projects.each do |project|
-            @env.ui.info("  #{project.name}", prefix: false)
+            @env.ui.info("  #{project.name} (ID: #{project.id})", prefix: false)
           end
         end
-
         0
       end
 
@@ -173,15 +114,18 @@ module VagrantPlugins
           o.banner = 'Usage: vagrant eryph project create <project-name> [options]'
           o.separator ''
           o.separator 'Options:'
-          o.separator ''
-
-          o.on('--description DESC', String, 'Project description') do |desc|
-            @options[:description] = desc
+          o.on('--no-wait', 'Do not wait for operation to complete') do
+            @options[:no_wait] = true
           end
         end
 
-        argv = parse_options(parser)
-        return unless argv
+        begin
+          argv = parser.parse!(@sub_args.dup)
+        rescue OptionParser::InvalidOption, OptionParser::InvalidArgument => e
+          @env.ui.error("#{e.message}")
+          @env.ui.info(parser.help, prefix: false)
+          return nil
+        end
 
         if argv.empty?
           @env.ui.error('Project name is required')
@@ -192,35 +136,41 @@ module VagrantPlugins
         project_name = argv[0]
         client = get_eryph_client
 
-        @env.ui.info("Creating project: #{project_name}")
-
-        # Create project with custom description if provided
-        project_request = {
-          name: project_name,
-          description: @options[:description] || 'Created via Vagrant Eryph plugin'
-        }
-
         begin
-          operation = client.client.projects.projects_create({ new_project_request: project_request })
-          if operation&.id
-            @env.ui.info("Project creation initiated (Operation ID: #{operation.id})")
-            client.wait_for_operation(operation.id)
-            @env.ui.info("Project '#{project_name}' created successfully")
-          end
+          @env.ui.info("Creating project: #{project_name}")
+          project = client.create_project(project_name)
+          @env.ui.info("Project '#{project.name}' created successfully (ID: #{project.id})")
+          0
         rescue StandardError => e
           @env.ui.error("Failed to create project: #{e.message}")
-          return 1
+          1
         end
-
-        0
       end
 
-      def execute_show
-        argv = parse_options
-        return unless argv
+      def execute_remove
+        parser = OptionParser.new do |o|
+          o.banner = 'Usage: vagrant eryph project remove <project-name> [options]'
+          o.separator ''
+          o.separator 'Options:'
+          o.on('--force', 'Do not ask for confirmation') do
+            @options[:force] = true
+          end
+          o.on('--no-wait', 'Do not wait for operation to complete') do
+            @options[:no_wait] = true
+          end
+        end
+
+        begin
+          argv = parser.parse!(@sub_args.dup)
+        rescue OptionParser::InvalidOption, OptionParser::InvalidArgument => e
+          @env.ui.error("#{e.message}")
+          @env.ui.info(parser.help, prefix: false)
+          return nil
+        end
 
         if argv.empty?
           @env.ui.error('Project name is required')
+          @env.ui.info(parser.help, prefix: false)
           return 1
         end
 
@@ -229,83 +179,393 @@ module VagrantPlugins
 
         begin
           project = client.get_project(project_name)
-          if project
-            @env.ui.info("Project: #{project.name}", prefix: false)
-            @env.ui.info("Description: #{project.description || 'N/A'}", prefix: false)
-
-            # Show project networks if available
-            if project.respond_to?(:networks) && project.networks
-              @env.ui.info('Networks:', prefix: false)
-              project.networks.each do |network|
-                @env.ui.info("  - #{network.name}", prefix: false)
-              end
-            end
-          else
+          unless project
             @env.ui.error("Project '#{project_name}' not found")
             return 1
           end
-        rescue StandardError => e
-          @env.ui.error("Failed to get project: #{e.message}")
-          return 1
-        end
 
-        0
+          unless @options[:force]
+            response = @env.ui.ask("Project '#{project.name}' (ID: #{project.id}) and all catlets will be deleted! Continue? (y/N)")
+            return 0 unless response.downcase.start_with?('y')
+          end
+
+          @env.ui.info("Removing project: #{project.name}")
+          delete_project(client, project.id)
+          @env.ui.info("Project '#{project.name}' removed successfully")
+          0
+        rescue StandardError => e
+          @env.ui.error("Failed to remove project: #{e.message}")
+          1
+        end
       end
 
       def get_eryph_client
         # Try to get client from existing machines
         @env.machine_names.each do |name|
           machine = @env.machine(name, :eryph)
-          return Helpers::EryphClient.new(machine) if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
+          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
+            client = Helpers::EryphClient.new(machine)
+            
+            # Override client configuration if command line options are provided
+            if @options[:configuration_name] || @options[:client_id]
+              override_client_config(client)
+            end
+            
+            return client
+          end
         end
 
-        # If no Eryph machines found, create a basic client with default config
-        # This is a simplified approach - in a real implementation you might want
-        # to create a temporary machine-like object with default configuration
-        raise 'No Eryph provider configuration found. Please configure at least one machine with the Eryph provider.'
+        # If no machines found, create a temporary config with command line options
+        create_standalone_client
       end
 
-      def list_project_networks(client, project_name)
-        project = client.get_project(project_name)
-        if project
-          @env.ui.info("Networks for project '#{project_name}':", prefix: false)
+      private
 
-          if project.respond_to?(:networks) && project.networks&.any?
-            project.networks.each do |network|
-              @env.ui.info("  - #{network.name}", prefix: false)
+      def override_client_config(client)
+        # Update the client's configuration with command line options
+        config = client.instance_variable_get(:@config)
+        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
+        config.client_id = @options[:client_id] if @options[:client_id]
+        
+        # Force recreation of the client with new config
+        client.instance_variable_set(:@client, nil)
+      end
+
+      def create_standalone_client
+        # Create a minimal machine-like object for standalone client
+        require 'ostruct'
+        
+        config = VagrantPlugins::Eryph::Config.new
+        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
+        config.client_id = @options[:client_id] if @options[:client_id]
+        config.finalize!
+        
+        # Create a fake machine with just the provider config we need
+        fake_machine = OpenStruct.new(
+          provider_config: config,
+          ui: @env.ui
+        )
+        
+        Helpers::EryphClient.new(fake_machine)
+      rescue StandardError => e
+        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
+      end
+
+      def delete_project(client, project_id)
+        operation = client.client.projects.projects_delete(project_id)
+        raise 'Failed to delete project: No operation returned' unless operation&.id
+
+        result = client.wait_for_operation(operation.id)
+        unless result.completed?
+          error_msg = result.status_message || 'Operation failed'
+          raise "Project deletion failed: #{error_msg}"
+        end
+      end
+    end
+
+    class NetworkCommand < Vagrant.plugin('2', :command)
+      def self.synopsis
+        'manage project network configurations'
+      end
+
+      def initialize(argv, env)
+        super
+        @options = {}
+        @parser = OptionParser.new do |o|
+          o.banner = 'Usage: vagrant eryph network <subcommand> [options]'
+          o.separator ''
+          o.separator 'Subcommands:'
+          o.separator '     get        Get project network configuration (YAML)'
+          o.separator '     set        Set project network configuration from YAML'
+          o.separator ''
+          o.separator 'Global Options:'
+          
+          o.on('--configuration-name NAME', String, 'Eryph configuration name (default: auto-detect)') do |name|
+            @options[:configuration_name] = name
+          end
+          
+          o.on('--client-id ID', String, 'Eryph client ID') do |id|
+            @options[:client_id] = id
+          end
+          
+          o.separator ''
+        end
+
+        @main_args, @sub_command, @sub_args = split_main_and_subcommand(argv)
+      end
+
+      def execute
+        case @sub_command
+        when 'get'
+          execute_get
+        when 'set'
+          execute_set
+        else
+          @env.ui.info(@parser.help, prefix: false)
+          1
+        end
+      end
+
+      private
+
+      def execute_get
+        parser = OptionParser.new do |o|
+          o.banner = 'Usage: vagrant eryph network get <project-name> [options]'
+          o.separator ''
+          o.separator 'Options:'
+          o.on('-o', '--output FILE', 'Write configuration to file') do |file|
+            @options[:output] = file
+          end
+        end
+
+        begin
+          argv = parser.parse!(@sub_args.dup)
+        rescue OptionParser::InvalidOption, OptionParser::InvalidArgument => e
+          @env.ui.error("#{e.message}")
+          @env.ui.info(parser.help, prefix: false)
+          return nil
+        end
+
+        if argv.empty?
+          @env.ui.error('Project name is required')
+          @env.ui.info(parser.help, prefix: false)
+          return 1
+        end
+
+        project_name = argv[0]
+        client = get_eryph_client
+
+        begin
+          project = client.get_project(project_name)
+          unless project
+            @env.ui.error("Project '#{project_name}' not found")
+            return 1
+          end
+
+          config_response = client.client.virtual_networks.virtual_networks_get_config(project.id)
+          
+          if config_response&.configuration
+            # Configuration is already a Hash/Object, convert symbols to strings for clean YAML
+            clean_config = deep_stringify_keys(config_response.configuration)
+            yaml_config = clean_config.to_yaml
+
+            if @options[:output]
+              File.write(@options[:output], yaml_config)
+              @env.ui.info("Network configuration written to: #{@options[:output]}")
+            else
+              @env.ui.info("Network configuration for project '#{project.name}':", prefix: false)
+              @env.ui.info(yaml_config, prefix: false)
             end
           else
-            @env.ui.info('  No networks configured', prefix: false)
+            @env.ui.info("No network configuration found for project '#{project.name}'")
           end
-        else
-          @env.ui.error("Project '#{project_name}' not found")
+          0
+        rescue StandardError => e
+          @env.ui.error("Failed to get network configuration: #{e.message}")
+          1
         end
+      end
+
+      def execute_set
+        parser = OptionParser.new do |o|
+          o.banner = 'Usage: vagrant eryph network set <project-name> [options]'
+          o.separator ''
+          o.separator 'Options:'
+          o.on('-f', '--file FILE', 'Read configuration from file') do |file|
+            @options[:file] = file
+          end
+          o.on('-c', '--config CONFIG', 'Configuration as string') do |config|
+            @options[:config] = config
+          end
+          o.on('--force', 'Force import even if project names differ') do
+            @options[:force] = true
+          end
+          o.on('--no-wait', 'Do not wait for operation to complete') do
+            @options[:no_wait] = true
+          end
+        end
+
+        begin
+          argv = parser.parse!(@sub_args.dup)
+        rescue OptionParser::InvalidOption, OptionParser::InvalidArgument => e
+          @env.ui.error("#{e.message}")
+          @env.ui.info(parser.help, prefix: false)
+          return nil
+        end
+
+        if argv.empty?
+          @env.ui.error('Project name is required')
+          @env.ui.info(parser.help, prefix: false)
+          return 1
+        end
+
+        unless @options[:file] || @options[:config]
+          @env.ui.error('Either --file or --config is required')
+          @env.ui.info(parser.help, prefix: false)
+          return 1
+        end
+
+        project_name = argv[0]
+        client = get_eryph_client
+
+        begin
+          project = client.get_project(project_name)
+          unless project
+            @env.ui.error("Project '#{project_name}' not found")
+            return 1
+          end
+
+          # Read configuration
+          config_content = if @options[:file]
+                            unless File.exist?(@options[:file])
+                              @env.ui.error("File not found: #{@options[:file]}")
+                              return 1
+                            end
+                            File.read(@options[:file])
+                          else
+                            @options[:config]
+                          end
+
+          # Parse configuration
+          config_data = parse_network_config(config_content)
+          unless config_data
+            @env.ui.error('Invalid configuration format. Expected YAML or JSON.')
+            return 1
+          end
+
+          # Validate project name in config
+          if config_data['project'] && config_data['project'] != project_name
+            unless @options[:force]
+              response = @env.ui.ask("Configuration was exported from project '#{config_data['project']}' but will be imported to '#{project_name}'. Continue? (y/N)")
+              return 0 unless response.downcase.start_with?('y')
+            end
+          end
+
+          # Set project name in config
+          config_data['project'] = project_name
+
+          @env.ui.info("Setting network configuration for project '#{project.name}'...")
+          
+          # Create request body - API expects Hash object directly
+          request_body = ::Eryph::ComputeClient::UpdateProjectNetworksRequestBody.new(
+            configuration: config_data
+          )
+
+          operation = client.client.virtual_networks.virtual_networks_update_config(
+            project.id, 
+            request_body
+          )
+
+          raise 'Failed to update network configuration: No operation returned' unless operation&.id
+
+          unless @options[:no_wait]
+            result = client.wait_for_operation(operation.id)
+            unless result.completed?
+              error_msg = result.status_message || 'Operation failed'
+              raise "Network configuration update failed: #{error_msg}"
+            end
+          end
+
+          @env.ui.info("Network configuration updated successfully for project '#{project.name}'")
+          0
+        rescue StandardError => e
+          @env.ui.error("Failed to set network configuration: #{e.message}")
+          1
+        end
+      end
+
+      def get_eryph_client
+        # Try to get client from existing machines
+        @env.machine_names.each do |name|
+          machine = @env.machine(name, :eryph)
+          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
+            client = Helpers::EryphClient.new(machine)
+            
+            # Override client configuration if command line options are provided
+            if @options[:configuration_name] || @options[:client_id]
+              override_client_config(client)
+            end
+            
+            return client
+          end
+        end
+
+        # If no machines found, create a temporary config with command line options
+        create_standalone_client
+      end
+
+      private
+
+      def override_client_config(client)
+        # Update the client's configuration with command line options
+        config = client.instance_variable_get(:@config)
+        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
+        config.client_id = @options[:client_id] if @options[:client_id]
+        
+        # Force recreation of the client with new config
+        client.instance_variable_set(:@client, nil)
+      end
+
+      def create_standalone_client
+        # Create a minimal machine-like object for standalone client
+        require 'ostruct'
+        
+        config = VagrantPlugins::Eryph::Config.new
+        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
+        config.client_id = @options[:client_id] if @options[:client_id]
+        config.finalize!
+        
+        # Create a fake machine with just the provider config we need
+        fake_machine = OpenStruct.new(
+          provider_config: config,
+          ui: @env.ui
+        )
+        
+        Helpers::EryphClient.new(fake_machine)
       rescue StandardError => e
-        @env.ui.error("Failed to list project networks: #{e.message}")
+        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
       end
 
-      def add_project_network(_client, project_name, network_name)
-        @env.ui.info("Adding network '#{network_name}' to project '#{project_name}'...")
+      def parse_network_config(config_string)
+        # Handle encoding issues first
+        # Detect UTF-16LE content (null bytes between characters)
+        if config_string.include?("\u0000")
+          # This is UTF-16LE content read as UTF-8, convert it properly
+          clean_config = config_string.force_encoding('UTF-16LE').encode('UTF-8')
+        else
+          clean_config = config_string
+        end
+        
+        clean_config = clean_config.strip
+        clean_config = clean_config.gsub(/\r\n/, "\n")
 
+        # Try JSON first
+        if clean_config.start_with?('{') && clean_config.end_with?('}')
+          begin
+            return JSON.parse(clean_config)
+          rescue JSON::ParserError
+            return nil
+          end
+        end
+
+        # Try YAML
         begin
-          # This would need to be implemented based on the actual Eryph API
-          # for updating project network configurations
-          @env.ui.warn('Network configuration API not yet implemented')
-          @env.ui.info("Would add network: #{network_name}")
-        rescue StandardError => e
-          @env.ui.error("Failed to add network: #{e.message}")
+          return YAML.safe_load(clean_config)
+        rescue Psych::SyntaxError
+          return nil
         end
       end
 
-      def remove_project_network(_client, project_name, network_name)
-        @env.ui.info("Removing network '#{network_name}' from project '#{project_name}'...")
-
-        begin
-          # This would need to be implemented based on the actual Eryph API
-          @env.ui.warn('Network configuration API not yet implemented')
-          @env.ui.info("Would remove network: #{network_name}")
-        rescue StandardError => e
-          @env.ui.error("Failed to remove network: #{e.message}")
+      def deep_stringify_keys(obj)
+        case obj
+        when Hash
+          obj.each_with_object({}) do |(key, value), result|
+            result[key.to_s] = deep_stringify_keys(value)
+          end
+        when Array
+          obj.map { |item| deep_stringify_keys(item) }
+        else
+          obj
         end
       end
     end
