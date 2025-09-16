@@ -60,14 +60,6 @@ stages:
         bundle exec rake build
       displayName: 'Build vagrant-eryph gem'
 
-    # Install Vagrant
-    - script: |
-        echo "Downloading and installing Vagrant..."
-        curl -L -o vagrant.msi https://releases.hashicorp.com/vagrant/2.4.7/vagrant_2.4.7_windows_amd64.msi
-        msiexec /i vagrant.msi /quiet /norestart
-        echo "Vagrant installation completed"
-      displayName: 'Install Vagrant'
-
     # Install plugin for E2E testing
     - script: |
         set PATH=$(RUBY_PATH);$(VAGRANT_PATH);%PATH%
