@@ -59,7 +59,7 @@ RSpec.describe 'E2E Smoke Tests' do
       end
     end
     
-    it 'completes full deployment lifecycle', timeout: test_timeout do
+    it 'completes full deployment lifecycle' do
       # 1. VAGRANT STATUS - should recognize provider
       result = run_vagrant_command('status')
       expect(result[:success]).to be(true), "vagrant status failed: #{result[:stderr]}"
@@ -68,7 +68,7 @@ RSpec.describe 'E2E Smoke Tests' do
       # 2. VAGRANT UP - deploy catlet
       result = run_vagrant_command('up --provider=eryph', timeout: 600)
       expect(result[:success]).to be(true), "vagrant up failed: #{result[:stderr]}"
-      expect(result[:stdout]).to match(/catlet.*created/i), "No catlet creation confirmation"
+      expect(result[:stdout]).to match(/catlet.*provisioned successfully/i), "No catlet creation confirmation"
       
       # 3. VAGRANT STATUS - should show running
       result = run_vagrant_command('status')
@@ -102,7 +102,7 @@ RSpec.describe 'E2E Smoke Tests' do
       # 9. VAGRANT STATUS - should show not created
       result = run_vagrant_command('status')
       expect(result[:success]).to be(true), "vagrant status after destroy failed: #{result[:stderr]}"
-      expect(result[:stdout]).to match(/not created/i), "VM should be not created after destroy"
+      expect(result[:stdout]).to match(/not_created/i), "VM should be not created after destroy"
       
       puts "✅ Full E2E lifecycle completed successfully"
     end

@@ -8,7 +8,7 @@ end
 
 # E2E tests - slow, require real Vagrant + Eryph
 RSpec::Core::RakeTask.new(:e2e) do |t|
-  t.pattern = 'spec/e2e/**/*_spec.rb'  
+  t.pattern = 'spec/e2e/**/*_spec.rb'
   t.rspec_opts = '--format documentation --color'
 end
 
@@ -16,6 +16,18 @@ end
 RSpec::Core::RakeTask.new(:spec) do |t|
   t.pattern = 'spec/**/*_spec.rb'
   t.rspec_opts = '--format documentation --color'
+end
+
+# Unit tests with JUnit output for CI
+RSpec::Core::RakeTask.new('unit:ci') do |t|
+  t.pattern = 'spec/unit/**/*_spec.rb'
+  t.rspec_opts = '--format progress --format RspecJunitFormatter --out test-results-unit.xml'
+end
+
+# E2E tests with JUnit output for CI
+RSpec::Core::RakeTask.new('e2e:ci') do |t|
+  t.pattern = 'spec/e2e/**/*_spec.rb'
+  t.rspec_opts = '--format progress --format RspecJunitFormatter --out test-results-e2e.xml'
 end
 
 # Default task

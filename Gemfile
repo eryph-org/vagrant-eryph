@@ -8,6 +8,3 @@ group :development do
   gem 'pry-byebug'
 end
 
-group :plugins do
-  gem 'vagrant-eryph', path: '.'
-end
