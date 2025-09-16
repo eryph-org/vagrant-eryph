@@ -100,3 +100,69 @@ stages:
         echo "=== End Summary ==="
       displayName: 'Build summary'
       condition: always()
+
+# Stage 2: Deploy to RubyGems
+- stage: Deploy
+  displayName: 'Deploy to RubyGems'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['PUBLISH_TO_RUBYGEMS'], 'true'))
+  jobs:
+  - deployment: DeployToRubyGems
+    displayName: 'Publish to RubyGems.org'
+    environment: rubygems-production
+    pool:
+      name: eryph
+      demands:
+      - Agent.Name -equals vsts-agent
+    variables:
+    - group: rubygems-eryph
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Download gem artifacts from build stage
+          - download: current
+            artifact: vagrant-eryph-gem
+            displayName: 'Download gem artifact'
+
+          # Set up Ruby environment
+          - script: |
+              set PATH=$(RUBY_PATH);%PATH%
+              gem update --system --no-document
+              gem install bundler -v $(BUNDLER_VERSION) --no-document
+            displayName: 'Set up Ruby environment'
+
+          # Verify gem file exists
+          - script: |
+              dir $(Pipeline.Workspace)\vagrant-eryph-gem\
+              if not exist "$(Pipeline.Workspace)\vagrant-eryph-gem\vagrant-eryph-*.gem" (
+                echo "ERROR: No gem file found in artifacts"
+                exit 1
+              )
+            displayName: 'Verify gem artifact'
+
+          # Configure RubyGems credentials
+          - script: |
+              set PATH=$(RUBY_PATH);%PATH%
+              mkdir %USERPROFILE%\.gem 2>nul || echo Directory exists
+              echo ---> %USERPROFILE%\.gem\credentials
+              echo :rubygems_api_key: $(RUBYGEMS_API_TOKEN)> %USERPROFILE%\.gem\credentials
+            displayName: 'Configure RubyGems credentials'
+            env:
+              RUBYGEMS_API_TOKEN: $(RUBYGEMS_API_TOKEN)
+
+          # Publish gem to RubyGems
+          - script: |
+              set PATH=$(RUBY_PATH);%PATH%
+              cd $(Pipeline.Workspace)\vagrant-eryph-gem
+              for %%f in (vagrant-eryph-*.gem) do (
+                echo Publishing gem: %%f
+                gem push %%f
+              )
+            displayName: 'Publish gem to RubyGems'
+
+          # Clean up credentials
+          - script: |
+              if exist "%USERPROFILE%\.gem\credentials" del "%USERPROFILE%\.gem\credentials"
+            displayName: 'Clean up credentials'
+            condition: always()

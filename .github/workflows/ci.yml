@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        ruby-version: ["2.7", "3.0", "3.1", "3.2"]
+        ruby-version: ["3.1", "3.2", "3.3"]
         
     steps:
     - name: Checkout code
@@ -39,10 +39,6 @@ jobs:
         
     - name: Run unit tests
       run: bundle exec rake unit
-
-    - name: Run E2E tests (requires Eryph)
-      run: bundle exec rake e2e
-      continue-on-error: true
       
     - name: Build gem
       run: gem build vagrant-eryph.gemspec
@@ -137,22 +133,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Check documentation completeness
+    - name: Check documentation exists
       run: |
-        # Check that all required documentation files exist
+        # Check that core documentation files exist
         test -f README.md
-        test -f ERYPH_KNOWLEDGE.md
-        test -f IMPLEMENTATION_SUMMARY.md
+        test -f CLAUDE.md
         test -f examples/Vagrantfile
-        test -f examples/Vagrantfile.windows
-        
-        # Check that all Ruby files have proper documentation
-        echo "Checking Ruby file documentation..."
-        find lib -name "*.rb" | xargs grep -L "^#" | tee undocumented_files.txt
-        if [ -s undocumented_files.txt ]; then
-          echo "Warning: Found Ruby files without header comments"
-          cat undocumented_files.txt
-        fi
         
     - name: Validate example Vagrantfiles
       run: |
@@ -190,9 +176,9 @@ jobs:
         echo "Testing gem build performance..."
         time gem build vagrant-eryph.gemspec
         
-        # Test test suite execution time
-        echo "Testing test suite performance..."
-        time bundle exec rake spec
+        # Test unit test execution time
+        echo "Testing unit test performance..."
+        time bundle exec rake unit
         
         # Test configuration parsing performance
         echo "Testing configuration parsing performance..."
