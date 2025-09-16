@@ -11,22 +11,85 @@ A Vagrant provider plugin for [Eryph](https://www.eryph.io/) that allows you to 
 - Local-scoped credential discovery
 - Configurable cloud-init fodder merging
 
+## Requirements
+
+- **Vagrant** 2.0 or later
+- **Ruby** >= 3.1.0
+- **Eryph** - either:
+  - [Eryph-zero](https://www.eryph.io/downloads/eryph-zero) >= 0.4.1 installed locally or remotely
+  - For client management: [PowerShell module](https://www.powershellgallery.com/packages/Eryph.ComputeClient) (works on Windows/Linux/macOS)
+
+See the [Eryph documentation](https://www.eryph.io/docs) for installation and setup instructions.
+
 ## Installation
 
+Install the plugin using Vagrant's plugin system:
+
 ```bash
-gem install vagrant-eryph
+vagrant plugin install vagrant-eryph
+```
+
+Or install from a local gem file:
+
+```bash
+vagrant plugin install ./vagrant-eryph-*.gem
 ```
 
 ## Usage
 
+### Basic Linux Example
+
 ```ruby
 Vagrant.configure("2") do |config|
   config.vm.provider :eryph do |eryph|
-    eryph.project = "my-project"
-    eryph.parent = "dbosoft/ubuntu-22.04/latest"
-    eryph.auto_config = true  # Enable automatic Vagrant user setup
+    eryph.parent = "dbosoft/ubuntu-22.04"
   end
 end
+```
+
+Run with:
+```bash
+vagrant up --provider=eryph
+```
+
+### Windows Example
+
+```ruby
+Vagrant.configure("2") do |config|
+  config.vm.provider :eryph do |eryph|
+    eryph.parent = "dbosoft/winsrv2022-standard"
+    eryph.enable_winrm = true
+    eryph.vagrant_password = "SecureP@ss123"
+    eryph.cpus = 4
+    eryph.memory = 4096
+  end
+
+  # Configure Windows communication
+  # eryph requires https by default
+  config.vm.communicator = "winrm"
+  config.winrm.username = "vagrant"
+  config.winrm.password = "SecureP@ss123"
+  config.winrm.port = 5986
+  config.winrm.transport = :ssl
+  config.winrm.ssl_peer_verification = false
+  config.winrm.basic_auth_only = true  
+  config.vm.guest = :windows
+end
+```
+
+Run with:
+```bash
+vagrant up --provider=eryph
+```
+
+### Setting Default Provider
+
+To avoid specifying `--provider=eryph` every time:
+
+```bash
+export VAGRANT_DEFAULT_PROVIDER=eryph
+# or on Windows:
+set VAGRANT_DEFAULT_PROVIDER=eryph
 ```
 
 ## Configuration
@@ -69,9 +132,48 @@ vagrant eryph network set my-project --file networks.yml
 
 ## Development
 
+### Setup
+
 ```bash
 bundle install
-bundle exec vagrant --help
+```
+
+### Building and Testing
+
+```bash
+# Build gem
+rake build
+
+# Install locally for testing
+rake install
+
+# Reinstall after changes
+rake reinstall
+
+# Run unit tests (fast)
+rake unit
+
+# Run E2E tests (requires Eryph)
+rake e2e
+
+# Run all tests
+rake spec
+
+# Get detailed test information
+rake test_info
+```
+
+### Manual Installation
+
+```bash
+# Build gem manually
+gem build vagrant-eryph.gemspec
+
+# Install locally
+vagrant plugin install ./vagrant-eryph-*.gem
+
+# Uninstall
+vagrant plugin uninstall vagrant-eryph
 ```
 
 ## License
