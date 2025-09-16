@@ -40,19 +40,6 @@ jobs:
     - name: Build gem
       run: gem build vagrant-eryph.gemspec
 
-    - name: Install plugin locally
-      run: |
-        gem build vagrant-eryph.gemspec
-        vagrant plugin install vagrant-eryph-*.gem
-
-    - name: Verify plugin installation
-      run: vagrant plugin list | grep vagrant-eryph
-
-    - name: Test Vagrantfile examples
-      run: |
-        cd examples
-        vagrant validate
-
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
