@@ -17,10 +17,9 @@ This file contains technical knowledge about Eryph and the Vagrant plugin for Cl
 
 ### Genes & Genesets
 - **Genes**: VM image packages in format `organization/name:version`
-- **Primary test genes**:
+- **Primary test catlets**:
   - `dbosoft/ubuntu-22.04/latest` - Ubuntu 22.04 LTS (Linux)
-  - `dbosoft-winsrv2022-standard/latest` - Windows Server 2022
-  - `dbosoft/win-starter:2022` - Windows development environment
+  - `dbosoft/winsrv2022-standard/latest` - Windows Server 2022
 - **Genepool**: Online repository for sharing genes
 - **Local storage**: Genes cached locally after first use
 
@@ -180,13 +179,12 @@ The plugin implements a robust client authentication fallback:
 ## Development Context
 
 ### Testing Approach
-- **Unit tests**: Mock components, test logic in isolation
-- **Integration tests**: Require running Eryph instance
-- **Mock client**: `EryphClientMock` for offline testing
-- **Test environments**: 
-  - `VAGRANT_ERYPH_TEST=true` - Enable test mode
-  - `VAGRANT_ERYPH_INTEGRATION=true` - Enable integration tests
-  - `VAGRANT_ERYPH_MOCK_CLIENT=true` - Force mock client
+- **Unit tests**: Test individual components with realistic Vagrant simulation
+- **E2E tests**: Test complete deployment lifecycle with real Eryph + Vagrant
+- **No integration tests**: They provide false confidence by testing mocks with mocks
+- **Test environments**:
+  - Unit tests in `spec/unit/` directory
+  - E2E tests in `spec/e2e/` directory
 
 ### Common Development Patterns
 
@@ -428,19 +426,20 @@ end
 
 **Verification**: All integration test scenarios now work correctly - plugin detection, file creation, and command execution all function properly in isolated environments.
 
-**Solution**: Always run tests from Windows Command Prompt or PowerShell:
+**Solution**: Use current test structure:
 
-```powershell
-# From PowerShell (recommended):
-.\run_integration_tests.ps1
+```bash
+# Unit tests (fast, no dependencies)
+rake unit
 
-# Or manually from Command Prompt:
-set VAGRANT_ERYPH_INTEGRATION=true
-set VAGRANT_ERYPH_DEBUG=true
-rake integration
+# E2E tests (requires Eryph + Vagrant)
+rake e2e
 
-# For quick verification:
-ruby test_integration_simple.rb
+# All tests
+rake spec
+
+# Install plugin for E2E testing
+rake install
 ```
 
 **Technical Improvements Made**:

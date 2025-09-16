@@ -43,7 +43,7 @@ end
 - `ssh_key_injection` - SSH key injection method (:direct or :variable)
 
 ### Resources
-- `cpu` - Number of CPUs
+- `cpus` - Number of CPUs
 - `memory` - Memory in MB
 - `drives` - Custom drives configuration
 - `networks` - Custom networks configuration
@@ -62,11 +62,9 @@ vagrant eryph project list
 # Create project
 vagrant eryph project create my-project --description "My development project"
 
-# Show project details
-vagrant eryph project show my-project
-
-# Manage project networks (future feature)
-vagrant eryph project network my-project --list
+# Manage project networks
+vagrant eryph network get my-project
+vagrant eryph network set my-project --file networks.yml
 ```
 
 ## Development

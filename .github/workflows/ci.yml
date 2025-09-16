@@ -1,16 +1,13 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  release:
-    types: [ published ]
 
 env:
-  VAGRANT_VERSION: "2.4.0"
-  RUBY_VERSION: "3.1"
+  RUBY_VERSION: 3.2
 
 jobs:
   test:
@@ -20,125 +17,59 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        ruby-version: ["2.7", "3.0", "3.1", "3.2"]
-        
+        ruby-version: ["3.1", "3.2", "3.3"]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-        
+
     - name: Install dependencies
       run: |
         gem install bundler
         bundle install
-        
-    - name: Run structure tests
-      run: ruby tests/structure_test.rb
-      
+
     - name: Run unit tests
-      run: |
-        ruby tests/unit/config_test.rb
-        ruby tests/unit/cloud_init_test.rb  
-        ruby tests/unit/ssh_key_test.rb
-        
-    - name: Run mock integration tests
-      env:
-        VAGRANT_ERYPH_MOCK_CLIENT: true
-      run: ruby tests/e2e/full_lifecycle_test.rb
-      
+      run: bundle exec rake unit
+
     - name: Build gem
       run: gem build vagrant-eryph.gemspec
-      
-    - name: Upload gem artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: vagrant-eryph-gem-${{ matrix.os }}-ruby${{ matrix.ruby-version }}
-        path: vagrant-eryph-*.gem
-        retention-days: 7
-
-  vagrant-integration:
-    name: Vagrant Integration Tests
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ env.RUBY_VERSION }}
-        bundler-cache: true
-        
-    - name: Install Vagrant
-      run: |
-        wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-        sudo apt update && sudo apt install vagrant=${{ env.VAGRANT_VERSION }}-1
-        
-    - name: Install dependencies
-      run: bundle install
-      
-    - name: Build and install plugin
-      run: |
-        gem build vagrant-eryph.gemspec
-        vagrant plugin install vagrant-eryph-*.gem
-        
-    - name: Verify plugin installation
-      run: |
-        vagrant plugin list | grep vagrant-eryph
-        ruby tests/installation_test.rb
-        
-    - name: Test Vagrantfile examples
-      run: |
-        cd examples
-        vagrant validate
-        cd ..
-        
-        # Test fixture Vagrantfiles
-        for vagrantfile in tests/fixtures/test_vagrantfiles/*.rb; do
-          echo "Testing $vagrantfile"
-          cp "$vagrantfile" Vagrantfile.test
-          vagrant validate --vagrantfile=Vagrantfile.test
-          rm Vagrantfile.test
-        done
 
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'pull_request'
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ env.RUBY_VERSION }}
-        
+        bundler-cache: true
+
     - name: Install bundler-audit
       run: gem install bundler-audit
-      
+
     - name: Install brakeman
       run: gem install brakeman
-      
+
     - name: Run bundler-audit
       run: |
         bundle install
         bundler-audit check --update
-        
+
     - name: Run Brakeman security scan
       run: brakeman --no-pager --format json --output brakeman-results.json
       continue-on-error: true
-      
+
     - name: Upload security scan results
       uses: actions/upload-artifact@v4
       if: always()
@@ -150,195 +81,20 @@ jobs:
   documentation:
     name: Documentation Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Check documentation completeness
+
+    - name: Check documentation exists
       run: |
-        # Check that all required documentation files exist
+        # Check that core documentation files exist
         test -f README.md
-        test -f ERYPH_KNOWLEDGE.md
-        test -f IMPLEMENTATION_SUMMARY.md
+        test -f CLAUDE.md
         test -f examples/Vagrantfile
-        test -f examples/Vagrantfile.windows
-        
-        # Check that all Ruby files have proper documentation
-        echo "Checking Ruby file documentation..."
-        find lib -name "*.rb" | xargs grep -L "^#" | tee undocumented_files.txt
-        if [ -s undocumented_files.txt ]; then
-          echo "Warning: Found Ruby files without header comments"
-          cat undocumented_files.txt
-        fi
-        
+
     - name: Validate example Vagrantfiles
       run: |
         # Check that example Vagrantfiles are syntactically correct
         ruby -c examples/Vagrantfile
         ruby -c examples/Vagrantfile.windows
-        
-        # Check test fixture Vagrantfiles
-        for vagrantfile in tests/fixtures/test_vagrantfiles/*.rb; do
-          echo "Validating syntax: $vagrantfile"
-          ruby -c "$vagrantfile"
-        done
-
-  performance-test:
-    name: Performance Tests
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ env.RUBY_VERSION }}
-        bundler-cache: true
-        
-    - name: Install dependencies
-      run: bundle install
-      
-    - name: Run performance benchmarks
-      run: |
-        # Test gem build time
-        echo "Testing gem build performance..."
-        time gem build vagrant-eryph.gemspec
-        
-        # Test test suite execution time
-        echo "Testing test suite performance..."
-        time ruby tests/test_runner.rb
-        
-        # Test configuration parsing performance
-        echo "Testing configuration parsing performance..."
-        ruby -e "
-          require 'benchmark'
-          require_relative 'lib/vagrant-eryph/config'
-          
-          config = VagrantPlugins::Eryph::Config.new
-          
-          time = Benchmark.measure do
-            1000.times do
-              config.project = 'test-project'
-              config.parent_gene = 'dbosoft/ubuntu-22.04/latest'
-              config.finalize!
-            end
-          end
-          
-          puts \"Configuration parsing: #{time.real}s for 1000 iterations\"
-        "
-
-  publish:
-    name: Publish Gem
-    runs-on: ubuntu-latest
-    needs: [test, vagrant-integration, security-scan]
-    if: github.event_name == 'release' && github.event.action == 'published'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ env.RUBY_VERSION }}
-        bundler-cache: true
-        
-    - name: Build gem
-      run: gem build vagrant-eryph.gemspec
-      
-    - name: Create release assets
-      run: |
-        # Create installation guide
-        cat > INSTALL.md << EOF
-        # Vagrant Eryph Plugin Installation
-        
-        ## Prerequisites
-        - Vagrant 2.2.0 or later
-        - Eryph zero installed and running
-        - Ruby 2.7.0 or later
-        
-        ## Installation
-        \`\`\`bash
-        vagrant plugin install vagrant-eryph-$(cat lib/vagrant-eryph/version.rb | grep VERSION | cut -d'"' -f2).gem
-        \`\`\`
-        
-        ## Quick Start
-        \`\`\`bash
-        # Create a new project directory
-        mkdir my-eryph-project && cd my-eryph-project
-        
-        # Initialize with example Vagrantfile
-        wget https://raw.githubusercontent.com/eryph-org/vagrant-eryph/main/examples/Vagrantfile
-        
-        # Start your catlet
-        vagrant up --provider=eryph
-        \`\`\`
-        
-        For more information, see the [documentation](https://github.com/eryph-org/vagrant-eryph).
-        EOF
-        
-        # Create checksums
-        sha256sum vagrant-eryph-*.gem > vagrant-eryph-checksums.txt
-        
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          vagrant-eryph-*.gem
-          vagrant-eryph-checksums.txt
-          INSTALL.md
-        body: |
-          ## Changes in this Release
-          
-          See [CHANGELOG.md](https://github.com/eryph-org/vagrant-eryph/blob/main/CHANGELOG.md) for detailed changes.
-          
-          ## Installation
-          
-          ```bash
-          vagrant plugin install vagrant-eryph-${{ github.event.release.tag_name }}.gem
-          ```
-          
-          ## Verification
-          
-          Verify the download with checksums:
-          ```bash
-          sha256sum -c vagrant-eryph-checksums.txt
-          ```
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Publish to RubyGems
-      if: env.RUBYGEMS_API_KEY != ''
-      run: |
-        mkdir -p ~/.gem
-        cat > ~/.gem/credentials << EOF
-        ---
-        :rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}
-        EOF
-        chmod 0600 ~/.gem/credentials
-        gem push vagrant-eryph-*.gem
-      env:
-        RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
-
-  notification:
-    name: Notification
-    runs-on: ubuntu-latest
-    needs: [test, vagrant-integration, security-scan, documentation]
-    if: always()
-    
-    steps:
-    - name: Notify on success
-      if: needs.test.result == 'success' && needs.vagrant-integration.result == 'success'
-      run: |
-        echo "✅ All tests passed successfully!"
-        echo "Ready for deployment and release."
-        
-    - name: Notify on failure
-      if: needs.test.result == 'failure' || needs.vagrant-integration.result == 'failure' || needs.security-scan.result == 'failure'
-      run: |
-        echo "❌ Pipeline failed. Please check the logs and fix issues before merging."
-        exit 1

@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = 'https://github.com/eryph-org/vagrant-eryph'
   spec.license       = 'MIT'
   
-  spec.required_ruby_version = '>= 2.7.0'
+  spec.required_ruby_version = '>= 3.1.0'
   
   spec.files = Dir.glob('lib/**/*') + %w[README.md LICENSE vagrant-eryph.gemspec]
   spec.require_paths = ['lib']
@@ -23,5 +23,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'bundler', '~> 2.0'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
-  spec.add_development_dependency 'rspec-junit_formatter', '~> 0.6'
+  spec.add_development_dependency 'rspec_junit_formatter', '~> 0.6'
 end
