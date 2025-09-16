@@ -51,18 +51,25 @@ stages:
       displayName: 'Run unit tests'
       continueOnError: true
 
-    # Run E2E tests (assuming Vagrant and Eryph are available)
-    - script: |
-        set PATH=$(RUBY_PATH);%PATH%
-        bundle exec rake e2e:ci
-      displayName: 'Run E2E tests'
-      continueOnError: true
 
     # Build gem
     - script: |
         set PATH=$(RUBY_PATH);%PATH%
         bundle exec rake build
       displayName: 'Build vagrant-eryph gem'
+
+    # Install plugin for E2E testing
+    - script: |
+        set PATH=$(RUBY_PATH);%PATH%
+        vagrant plugin install vagrant-eryph-*.gem
+      displayName: 'Install plugin for E2E tests'
+
+    # Run E2E tests (Eryph environment available)
+    - script: |
+        set PATH=$(RUBY_PATH);%PATH%
+        bundle exec rake e2e:ci
+      displayName: 'Run E2E tests'
+      continueOnError: true
 
     # Create artifacts directory and copy gem
     - script: |
