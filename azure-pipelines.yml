@@ -7,6 +7,13 @@ trigger:
     exclude:
     - '*.md'
 
+# Runtime parameters
+parameters:
+- name: publishToRubygems
+  type: boolean
+  default: false
+  displayName: 'Publish to RubyGems'
+
 pool:
   name: eryph
   demands:
@@ -17,7 +24,7 @@ variables:
   BUNDLER_VERSION: '2.4.10'
   RUBY_PATH: 'C:\Ruby34-x64\bin'
   VAGRANT_PATH: 'C:\Program Files\Vagrant\bin'
-  PUBLISH_TO_RUBYGEMS: 'false'
+  PUBLISH_TO_RUBYGEMS: ${{ parameters.publishToRubygems }}
 
 stages:
 # Stage 1: Build and Test
