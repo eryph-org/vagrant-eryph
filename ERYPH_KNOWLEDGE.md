@@ -27,10 +27,9 @@ This knowledge base contains essential information about Eryph for the Vagrant p
 
 - **Gene Format**: `organization/name:version` (e.g., `dbosoft/ubuntu-22.04:latest`)
 - **Geneset**: Collection of genes that define a complete environment
-- **Common Genes**:
+- **Common Catlets** (from genepool):
   - `dbosoft/ubuntu-22.04/latest` - Ubuntu 22.04 LTS
-  - `dbosoft-winsrv2022-standard/latest` - Windows Server 2022
-  - `dbosoft/win-starter:2022` - Windows development environment
+  - `dbosoft/winsrv2022-standard/latest` - Windows Server 2022
 
 ### Projects
 **Projects** organize catlets and resources within Eryph.
@@ -411,24 +410,25 @@ netstat -tlnp
 
 ### Test Environment Setup
 ```bash
-# Set up test environment
-export VAGRANT_ERYPH_TEST=true
-export VAGRANT_ERYPH_DEBUG=true
+# Unit tests (fast, no dependencies)
+rake unit
 
-# Run test suite
-ruby tests/test_runner.rb
+# E2E tests (requires Eryph + Vagrant)
+rake e2e
 
-# Integration tests (requires Eryph)
-export VAGRANT_ERYPH_INTEGRATION=true
-ruby tests/test_runner.rb
+# All tests
+rake spec
+
+# Install plugin for testing
+rake install
 ```
 
 ### Test Data
 Use these standard test configurations:
 
-**Test Genes**:
+**Test Catlets**:
 - `dbosoft/ubuntu-22.04/latest` - Ubuntu testing
-- `dbosoft-winsrv2022-standard/latest` - Windows testing
+- `dbosoft/winsrv2022-standard/latest` - Windows testing
 
 **Test Projects**:
 - `vagrant-test-linux` - Linux catlet testing

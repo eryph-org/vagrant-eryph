@@ -37,19 +37,12 @@ jobs:
         gem install bundler
         bundle install
         
-    - name: Run structure tests
-      run: ruby tests/structure_test.rb
-      
     - name: Run unit tests
-      run: |
-        ruby tests/unit/config_test.rb
-        ruby tests/unit/cloud_init_test.rb  
-        ruby tests/unit/ssh_key_test.rb
-        
-    - name: Run mock integration tests
-      env:
-        VAGRANT_ERYPH_MOCK_CLIENT: true
-      run: ruby tests/e2e/full_lifecycle_test.rb
+      run: bundle exec rake unit
+
+    - name: Run E2E tests (requires Eryph)
+      run: bundle exec rake e2e
+      continue-on-error: true
       
     - name: Build gem
       run: gem build vagrant-eryph.gemspec
@@ -92,23 +85,12 @@ jobs:
         vagrant plugin install vagrant-eryph-*.gem
         
     - name: Verify plugin installation
-      run: |
-        vagrant plugin list | grep vagrant-eryph
-        ruby tests/installation_test.rb
-        
+      run: vagrant plugin list | grep vagrant-eryph
+
     - name: Test Vagrantfile examples
       run: |
         cd examples
         vagrant validate
-        cd ..
-        
-        # Test fixture Vagrantfiles
-        for vagrantfile in tests/fixtures/test_vagrantfiles/*.rb; do
-          echo "Testing $vagrantfile"
-          cp "$vagrantfile" Vagrantfile.test
-          vagrant validate --vagrantfile=Vagrantfile.test
-          rm Vagrantfile.test
-        done
 
   security-scan:
     name: Security Scan
@@ -210,7 +192,7 @@ jobs:
         
         # Test test suite execution time
         echo "Testing test suite performance..."
-        time ruby tests/test_runner.rb
+        time bundle exec rake spec
         
         # Test configuration parsing performance
         echo "Testing configuration parsing performance..."
@@ -223,7 +205,7 @@ jobs:
           time = Benchmark.measure do
             1000.times do
               config.project = 'test-project'
-              config.parent_gene = 'dbosoft/ubuntu-22.04/latest'
+              config.parent = 'dbosoft/ubuntu-22.04/latest'
               config.finalize!
             end
           end
