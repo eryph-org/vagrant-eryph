@@ -21,6 +21,8 @@ variables:
   RUBY_VERSION: '3.4'
   BUNDLER_VERSION: '2.4.10'
   RUBY_PATH: 'C:\Ruby34-x64\bin'
+  VAGRANT_PATH: 'C:\Program Files\Vagrant\bin'
+  PUBLISH_TO_RUBYGEMS: 'false'
 
 stages:
 # Stage 1: Build and Test
@@ -58,15 +60,24 @@ stages:
         bundle exec rake build
       displayName: 'Build vagrant-eryph gem'
 
+    # Install Vagrant
+    - script: |
+        echo "Downloading and installing Vagrant..."
+        curl -L -o vagrant.msi https://releases.hashicorp.com/vagrant/2.4.7/vagrant_2.4.7_windows_amd64.msi
+        msiexec /i vagrant.msi /quiet /norestart
+        echo "Vagrant installation completed"
+      displayName: 'Install Vagrant'
+
     # Install plugin for E2E testing
     - script: |
-        set PATH=$(RUBY_PATH);%PATH%
+        set PATH=$(RUBY_PATH);$(VAGRANT_PATH);%PATH%
+        vagrant --version
         vagrant plugin install vagrant-eryph-*.gem
       displayName: 'Install plugin for E2E tests'
 
     # Run E2E tests (Eryph environment available)
     - script: |
-        set PATH=$(RUBY_PATH);%PATH%
+        set PATH=$(RUBY_PATH);$(VAGRANT_PATH);%PATH%
         bundle exec rake e2e:ci
       displayName: 'Run E2E tests'
       continueOnError: true
