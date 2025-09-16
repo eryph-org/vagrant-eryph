@@ -7,11 +7,6 @@ trigger:
     exclude:
     - '*.md'
 
-pr:
-  branches:
-    include:
-    - main
-
 pool:
   name: eryph
   demands:
