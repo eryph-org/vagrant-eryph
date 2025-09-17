@@ -106,6 +106,55 @@ RSpec.describe 'E2E Smoke Tests' do
       
       puts "✅ Full E2E lifecycle completed successfully"
     end
+
+    it 'handles reload operation correctly' do
+      # 1. Deploy initial catlet
+      result = run_vagrant_command('up --provider=eryph', timeout: 600)
+      expect(result[:success]).to be(true), "vagrant up failed: #{result[:stderr]}"
+
+      # 2. Verify catlet is running
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running before reload"
+
+      # 3. Test reload functionality
+      result = run_vagrant_command('reload', timeout: 300)
+      expect(result[:success]).to be(true), "vagrant reload failed: #{result[:stderr]}"
+
+      # 4. Verify catlet is running after reload
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status after reload failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running after reload"
+
+      # 5. Test SSH connectivity after reload
+      result = run_vagrant_command('ssh -c "echo Reload test successful"', timeout: 60)
+      expect(result[:success]).to be(true), "SSH after reload failed: #{result[:stderr]}"
+      expect(result[:stdout]).to include('Reload test successful'), "SSH should work after reload"
+
+      puts "✅ Reload operation completed successfully"
+    end
+
+    it 'handles reload with provision correctly' do
+      # 1. Deploy initial catlet
+      result = run_vagrant_command('up --provider=eryph', timeout: 600)
+      expect(result[:success]).to be(true), "vagrant up failed: #{result[:stderr]}"
+
+      # 2. Test reload with provision
+      result = run_vagrant_command('reload --provision', timeout: 400)
+      expect(result[:success]).to be(true), "vagrant reload --provision failed: #{result[:stderr]}"
+
+      # 3. Verify catlet is running and accessible
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status after reload --provision failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running after reload --provision"
+
+      # 4. Test SSH connectivity
+      result = run_vagrant_command('ssh -c "echo Reload with provision successful"', timeout: 60)
+      expect(result[:success]).to be(true), "SSH after reload --provision failed: #{result[:stderr]}"
+      expect(result[:stdout]).to include('Reload with provision successful'), "SSH should work after reload --provision"
+
+      puts "✅ Reload with provision completed successfully"
+    end
   end
   
   describe 'Error Handling' do

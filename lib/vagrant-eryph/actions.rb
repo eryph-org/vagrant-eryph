@@ -178,11 +178,12 @@ module VagrantPlugins
             end
 
             b2.use action_halt
-            b2.use Call, WaitForState, :stopped, 120 do |env2, b3|
+            b2.use Call, IsStopped do |env2, b3|
               if env2[:result]
-                b3.use action_up
+                b3.use action_start
               else
-                # TODO: we couldn't reach :stopped, what now?
+                # Catlet not stopped, continue anyway
+                b3.use action_start
               end
             end
           end
@@ -193,6 +194,7 @@ module VagrantPlugins
       action_root = Pathname.new(File.expand_path('actions', __dir__))
       autoload :ConnectEryph, action_root.join('connect_eryph')
       autoload :IsCreated, action_root.join('is_created')
+      autoload :IsState, action_root.join('is_state')
       autoload :IsStopped, action_root.join('is_stopped')
       autoload :MessageAlreadyCreated, action_root.join('message_already_created')
       autoload :MessageNotCreated, action_root.join('message_not_created')
@@ -204,7 +206,6 @@ module VagrantPlugins
       autoload :PrepareCloudInit, action_root.join('prepare_cloud_init')
       autoload :ReadSSHInfo, action_root.join('read_ssh_info')
       autoload :ReadState, action_root.join('read_state')
-      autoload :WaitForOperation, action_root.join('wait_for_operation')
     end
   end
 end
