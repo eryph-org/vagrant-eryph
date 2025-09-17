@@ -1,6 +1,6 @@
 # vagrant eryph Provider
 
-This is a vagrant provider plugin for [eryph](www.eryph.io) that allows you to manage virtual machines as catlets, which are VMs built from specification files (catlets are pure declarative VM configurations).  
+This is a vagrant provider plugin for [eryph](https://www.eryph.io) that allows you to manage virtual machines as catlets, which are VMs built from specification files (catlets are pure declarative VM configurations).  
 
 Eryph brings cloud-native features to local/on-premises development environments, such as storage management, virtual networks, and secure remote access. It is built on top of Hyper-V, but hides most of it. 
 
