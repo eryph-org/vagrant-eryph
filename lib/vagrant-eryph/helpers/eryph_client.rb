@@ -295,10 +295,9 @@ module VagrantPlugins
         end
 
         def wait_for_operation(operation_id, timeout = 600)
-          start_time = Time.now
-          current_tasks = {}
-
           @logger.info("Waiting for operation #{operation_id}...")
+          primary_task_name = nil
+          operation_started = false
 
           result = client([SCOPES[:CATLETS_READ]]).wait_for_operation(operation_id, timeout: timeout) do |event_type, data|
             case event_type
@@ -308,40 +307,37 @@ module VagrantPlugins
               resource_id = data.resource_id || data.id || 'unknown'
               @logger.debug("Attached #{resource_type} '#{resource_id}' to operation")
 
-            when :task_new, :task_update
-              # Track current tasks by ID
-              if data.respond_to?(:id) && data.id
-                current_tasks[data.id] = {
-                  name: data.display_name || data.name,
-                  progress: data.respond_to?(:progress) ? data.progress : nil
-                }
+            when :task_new
+              # Check if this is the primary task (ParentTaskId == operation_id)
+              if data.respond_to?(:parent_task_id) && data.parent_task_id == operation_id
+                primary_task_name = data.respond_to?(:display_name) && data.display_name ? data.display_name :
+                                   (data.respond_to?(:name) && data.name ? data.name : 'Operation')
 
-                @logger.debug("Task update #{current_tasks[data.id].inspect}")
+                unless operation_started
+                  @ui.info("Waiting for operation #{primary_task_name} (#{operation_id})")
+                  operation_started = true
+                end
               end
 
-            when :status
-              # Report current task with progress if available
-              elapsed = Time.now - start_time
-
-              # Find active tasks with progress
-              active_task = current_tasks.values.find do |task|
-                task[:progress]&.positive? && task[:progress] < 100
-              end
-
-              if active_task
-                @ui.info("Working... - #{active_task[:name]} #{active_task[:progress]}% - #{elapsed.round}s total elapsed")
+            when :log_entry
+              # Display log messages like .NET client verbose output
+              if data.respond_to?(:message) && data.message
+                @ui.info(data.message)
               end
             end
           end
 
           # Show final result
           if result.completed?
+            @ui.info("Operation ID: #{operation_id} - Operation completed successfully")
             @logger.info("Operation #{operation_id} completed successfully")
           elsif result.failed?
             error_msg = result.status_message || 'Operation failed'
+            @ui.info("Operation ID: #{operation_id} - Operation failed: #{error_msg}")
             @ui.error("Operation failed: #{error_msg}")
             raise "Operation #{operation_id} failed: #{error_msg}"
           else
+            @ui.info("Operation ID: #{operation_id} - Operation finished with status: #{result.status}")
             @ui.warn("Operation finished with status: #{result.status}")
           end
 
