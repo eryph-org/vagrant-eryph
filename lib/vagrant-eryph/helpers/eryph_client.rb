@@ -174,8 +174,15 @@ module VagrantPlugins
           result = wait_for_operation(operation.id)
 
           if result.completed?
-            # Use OperationResult's project accessor
-            project = result.project
+            # Fetch the operation again with projects expanded
+            final_operation = client([SCOPES[:PROJECTS_READ]]).operations.operations_get(
+              result.id,
+              expand: 'projects'
+            )
+            final_result = ::Eryph::Compute::OperationResult.new(final_operation, client([SCOPES[:PROJECTS_READ]]))
+
+            # Now get the project from the properly expanded operation
+            project = final_result.project
             raise "Operation ID: #{operation.id} - Project creation completed but project not found" unless project
 
             @logger.info("Operation ID: #{operation.id} - created project with ID: #{project.id}")
