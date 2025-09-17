@@ -307,12 +307,13 @@ The plugin includes commands to manage eryph projects:
 vagrant eryph project list
 
 # Create project
-vagrant eryph project create my-project --description "My development project"
+vagrant eryph project create my-project
 
 # Manage project networks
 vagrant eryph network get my-project
 vagrant eryph network set my-project --file networks.yml
 ```
+
 
 ## Development
 
