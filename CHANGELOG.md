@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-09-18
+
+### Fixed
+- Reload operation failures due to missing action methods (#6)
+- E2E test cleanup issues leaving behind test catlets
+- Improved test catlet cleanup with comprehensive after-suite cleanup
+
+
 ## [0.1.1] - 2025-09-17
 
 ### Fixed
