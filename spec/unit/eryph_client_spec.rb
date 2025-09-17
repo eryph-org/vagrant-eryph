@@ -119,7 +119,7 @@ RSpec.describe VagrantPlugins::Eryph::Helpers::EryphClient do
 
       expect do
         client_helper.create_project(project_name)
-      end.to raise_error(/Project creation failed: Operation failed/)
+      end.to raise_error(VagrantPlugins::Eryph::Errors::ProjectCreationError)
     end
   end
 
@@ -164,7 +164,7 @@ RSpec.describe VagrantPlugins::Eryph::Helpers::EryphClient do
       it 'raises error' do
         expect do
           client_helper.ensure_project_exists(project_name)
-        end.to raise_error(/not found and auto_create_project is disabled/)
+        end.to raise_error(VagrantPlugins::Eryph::Errors::ProjectNotFoundError)
       end
     end
   end

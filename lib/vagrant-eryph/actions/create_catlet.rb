@@ -41,9 +41,6 @@ module VagrantPlugins
           Provider.instance_variable_set(:@eryph_catlets, nil)
 
           @app.call(env)
-        rescue StandardError => e
-          ui.error("Failed to create catlet: #{e.message}")
-          raise e
         end
 
         private

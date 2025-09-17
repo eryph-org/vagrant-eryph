@@ -91,7 +91,10 @@ module VagrantPlugins
 
           else
             error_msg = result.status_message || 'Operation failed'
-            raise "Operation ID: #{operation.id} - Catlet creation failed: #{error_msg}"
+            raise Errors::CatletCreationError, {
+              catlet_name: catlet_config_hash[:name],
+              message: error_msg
+            }
           end
         end
 
@@ -189,7 +192,10 @@ module VagrantPlugins
             project  # Return the project, not the result
           else
             error_msg = result.status_message || 'Operation failed'
-            raise "Operation ID: #{operation.id} - Project creation failed: #{error_msg}"
+            raise Errors::ProjectCreationError, {
+              project_name: project_name,
+              message: error_msg
+            }
           end
         end
 
@@ -200,7 +206,7 @@ module VagrantPlugins
           return project if project
 
           unless @config.auto_create_project
-            raise "Project '#{project_name}' not found and auto_create_project is disabled"
+            raise Errors::ProjectNotFoundError, { project_name: project_name }
           end
 
           @ui.info("Project '#{project_name}' not found, creating automatically...")
@@ -340,18 +346,15 @@ module VagrantPlugins
             @logger.info("Operation #{operation_id} completed successfully")
           elsif result.failed?
             error_msg = result.status_message || 'Operation failed'
-            @ui.info("Operation ID: #{operation_id} - Operation failed: #{error_msg}")
-            @ui.error("Operation failed: #{error_msg}")
-            raise "Operation #{operation_id} failed: #{error_msg}"
+            raise Errors::OperationFailedError, {
+              operation_id: operation_id,
+              message: error_msg
+            }
           else
-            @ui.info("Operation ID: #{operation_id} - Operation finished with status: #{result.status}")
             @ui.warn("Operation finished with status: #{result.status}")
           end
 
           result
-        rescue StandardError => e
-          @ui.error("Error waiting for operation: #{e.message}")
-          raise e
         end
 
         private

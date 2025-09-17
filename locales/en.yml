@@ -10,8 +10,9 @@ en:
       catlet_not_found: |-
         The catlet could not be found in Eryph. It may have been deleted
         outside of Vagrant.
-      operation_failed: |-
-        The Eryph operation failed. Please check the Eryph logs for more
-        information.
+      operation_failed: "Operation %{operation_id} failed: %{message}"
+      project_not_found: "Project '%{project_name}' not found"
+      project_creation_failed: "Failed to create project '%{project_name}': %{message}"
+      catlet_creation_failed: "Failed to create catlet '%{catlet_name}': %{message}"
       configuration_error: |-
         Invalid configuration. Please check your Vagrantfile settings.
