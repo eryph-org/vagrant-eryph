@@ -50,12 +50,38 @@ RSpec.describe 'E2E Smoke Tests' do
   end
   
   describe 'Full VM Lifecycle' do
+    before(:each) do
+      # Clean up any existing catlet before starting test
+      puts "🔍 Checking for existing test catlet..."
+      status_result = run_vagrant_command('status')
+      if status_result[:success] && !status_result[:stdout].match(/not.created/i)
+        puts "🧹 Found existing catlet, cleaning up before test..."
+        destroy_result = run_vagrant_command('destroy -f', timeout: 300)
+        if destroy_result[:success]
+          puts "✅ Pre-test cleanup successful"
+        else
+          puts "❌ Pre-test cleanup failed: #{destroy_result[:stderr]}"
+          puts "⚠️  Will rely on final cleanup to handle remaining catlets"
+        end
+      else
+        puts "✅ No existing catlet found"
+      end
+    end
+
     after(:each) do
-      # Always try to clean up, even if test fails
+      # Simple cleanup - final_cleanup will handle any failures
       begin
-        run_vagrant_command('destroy -f', timeout: 180)
+        puts "🧹 Cleaning up test catlet..."
+        result = run_vagrant_command('destroy -f', timeout: 180)
+        if result[:success]
+          puts "✅ Cleanup successful"
+        else
+          puts "❌ Cleanup failed: #{result[:stderr]}"
+          puts "⚠️  Final cleanup will handle remaining catlets"
+        end
       rescue => e
-        puts "Cleanup failed: #{e.message}"
+        puts "❌ Cleanup exception: #{e.message}"
+        puts "⚠️  Final cleanup will handle remaining catlets"
       end
     end
     
@@ -105,6 +131,55 @@ RSpec.describe 'E2E Smoke Tests' do
       expect(result[:stdout]).to match(/not_created/i), "VM should be not created after destroy"
       
       puts "✅ Full E2E lifecycle completed successfully"
+    end
+
+    it 'handles reload operation correctly' do
+      # 1. Deploy initial catlet
+      result = run_vagrant_command('up --provider=eryph', timeout: 600)
+      expect(result[:success]).to be(true), "vagrant up failed: #{result[:stderr]}"
+
+      # 2. Verify catlet is running
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running before reload"
+
+      # 3. Test reload functionality
+      result = run_vagrant_command('reload', timeout: 300)
+      expect(result[:success]).to be(true), "vagrant reload failed: #{result[:stderr]}"
+
+      # 4. Verify catlet is running after reload
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status after reload failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running after reload"
+
+      # 5. Test SSH connectivity after reload
+      result = run_vagrant_command('ssh -c "echo Reload test successful"', timeout: 60)
+      expect(result[:success]).to be(true), "SSH after reload failed: #{result[:stderr]}"
+      expect(result[:stdout]).to include('Reload test successful'), "SSH should work after reload"
+
+      puts "✅ Reload operation completed successfully"
+    end
+
+    it 'handles reload with provision correctly' do
+      # 1. Deploy initial catlet
+      result = run_vagrant_command('up --provider=eryph', timeout: 600)
+      expect(result[:success]).to be(true), "vagrant up failed: #{result[:stderr]}"
+
+      # 2. Test reload with provision
+      result = run_vagrant_command('reload --provision', timeout: 400)
+      expect(result[:success]).to be(true), "vagrant reload --provision failed: #{result[:stderr]}"
+
+      # 3. Verify catlet is running and accessible
+      result = run_vagrant_command('status')
+      expect(result[:success]).to be(true), "vagrant status after reload --provision failed: #{result[:stderr]}"
+      expect(result[:stdout]).to match(/running/i), "VM should be running after reload --provision"
+
+      # 4. Test SSH connectivity
+      result = run_vagrant_command('ssh -c "echo Reload with provision successful"', timeout: 60)
+      expect(result[:success]).to be(true), "SSH after reload --provision failed: #{result[:stderr]}"
+      expect(result[:stdout]).to include('Reload with provision successful'), "SSH should work after reload --provision"
+
+      puts "✅ Reload with provision completed successfully"
     end
   end
   

@@ -10,6 +10,9 @@ end
 RSpec::Core::RakeTask.new(:e2e) do |t|
   t.pattern = 'spec/e2e/**/*_spec.rb'
   t.rspec_opts = '--format documentation --color'
+
+  # Set environment variable to enable cleanup
+  ENV['VAGRANT_ERYPH_E2E'] = 'true'
 end
 
 # All tests
@@ -28,6 +31,9 @@ end
 RSpec::Core::RakeTask.new('e2e:ci') do |t|
   t.pattern = 'spec/e2e/**/*_spec.rb'
   t.rspec_opts = '--format progress --format RspecJunitFormatter --out test-results-e2e.xml'
+
+  # Set environment variable to enable cleanup for CI as well
+  ENV['VAGRANT_ERYPH_E2E'] = 'true'
 end
 
 # Default task

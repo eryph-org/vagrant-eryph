@@ -13,8 +13,8 @@ Vagrant.configure("2") do |config|
     eryph.auto_config = true
   end
   
-  # Set VM hostname for predictable testing
-  config.vm.hostname = "e2e-test-vm"
+  # Set VM hostname with timestamp for unique identification
+  config.vm.hostname = "vagrant-test-#{Time.now.strftime('%Y%m%d-%H%M%S')}"
   
   # Configure SSH for faster connection
   config.ssh.insert_key = false

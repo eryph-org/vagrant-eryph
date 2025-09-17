@@ -3,6 +3,9 @@ require 'rspec'
 # Load our Vagrant simulation before any plugin code
 require_relative 'support/vagrant_simulator'
 
+# Load cleanup helper for E2E tests
+require_relative 'support/cleanup_helper'
+
 # Configure RSpec
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
@@ -27,4 +30,11 @@ RSpec.configure do |config|
   
   # Include test helpers
   config.include VagrantSimulator::TestHelpers
+
+  # Final cleanup for E2E tests - only run when E2E tests are executed
+  config.after(:suite) do
+    if ENV['VAGRANT_ERYPH_E2E'] == 'true'
+      CleanupHelper.final_cleanup
+    end
+  end
 end
