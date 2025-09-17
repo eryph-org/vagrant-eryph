@@ -50,12 +50,38 @@ RSpec.describe 'E2E Smoke Tests' do
   end
   
   describe 'Full VM Lifecycle' do
+    before(:each) do
+      # Clean up any existing catlet before starting test
+      puts "🔍 Checking for existing test catlet..."
+      status_result = run_vagrant_command('status')
+      if status_result[:success] && !status_result[:stdout].match(/not.created/i)
+        puts "🧹 Found existing catlet, cleaning up before test..."
+        destroy_result = run_vagrant_command('destroy -f', timeout: 300)
+        if destroy_result[:success]
+          puts "✅ Pre-test cleanup successful"
+        else
+          puts "❌ Pre-test cleanup failed: #{destroy_result[:stderr]}"
+          puts "⚠️  Will rely on final cleanup to handle remaining catlets"
+        end
+      else
+        puts "✅ No existing catlet found"
+      end
+    end
+
     after(:each) do
-      # Always try to clean up, even if test fails
+      # Simple cleanup - final_cleanup will handle any failures
       begin
-        run_vagrant_command('destroy -f', timeout: 180)
+        puts "🧹 Cleaning up test catlet..."
+        result = run_vagrant_command('destroy -f', timeout: 180)
+        if result[:success]
+          puts "✅ Cleanup successful"
+        else
+          puts "❌ Cleanup failed: #{result[:stderr]}"
+          puts "⚠️  Final cleanup will handle remaining catlets"
+        end
       rescue => e
-        puts "Cleanup failed: #{e.message}"
+        puts "❌ Cleanup exception: #{e.message}"
+        puts "⚠️  Final cleanup will handle remaining catlets"
       end
     end
     
