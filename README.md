@@ -17,7 +17,7 @@ A Vagrant provider plugin for [Eryph](https://www.eryph.io/) that allows you to 
 - **Ruby** >= 3.1.0
 - **Eryph** - either:
   - [Eryph-zero](https://www.eryph.io/downloads/eryph-zero) >= 0.4.1 installed locally or remotely
-  - For client management: [PowerShell module](https://www.powershellgallery.com/packages/Eryph.ComputeClient) (works on Windows/Linux/macOS)
+  - For client management: [PowerShell module](https://www.powershellgallery.com/packages/Eryph.ClientRuntime.Configuration) (works on Windows/Linux/macOS)
 
 See the [Eryph documentation](https://www.eryph.io/docs) for installation and setup instructions.
 
