@@ -1,15 +1,15 @@
-# Vagrant eryph Provider
+# vagrant eryph Provider
 
-A Vagrant provider plugin for [eryph](https://www.eryph.io/) that allows you to manage Virtual Machines as catlets - which are VMs built from specification files (declarative configurations). 
+This is a vagrant provider plugin for [eryph](www.eryph.io) that allows you to manage virtual machines as catlets, which are VMs built from specification files (catlets are pure declarative VM configurations).  
 
-## Why Choose Vagrant eryph Provider?
+Eryph brings cloud-native features to local/on-premises development environments, such as storage management, virtual networks, and secure remote access. It is built on top of Hyper-V, but hides most of it. 
 
-**Use ANY VM template with Vagrant - no special Vagrant boxes needed:**
+## Why choose the eryph provider?
+
 - **Standard VMs work instantly** - Use any gene/template from eryph's genepool (https://genepool.eryph.io), Vagrant configuration is automatically injected via cloud-init.
-- **No more hunting for Vagrant boxes** - Stop searching for provider-specific boxes that may be outdated or unavailable
 - **Project isolation with SDN** - Full software-defined networking with isolated projects, virtual networks, and proper routing
 - **API-based remote access** - Develop from anywhere: WSL, Linux, macOS clients can all connect to Windows eryph hosts
-- **Non-admin development** - Unlike Hyper-V provider, developers don't need local admin rights
+- **Non-admin access** - Unlike Hyper-V provider, you don't need local admin rights
 
 **What Cloud-Native Features You Get:**
 - **Storage management** - Automatic creation/removal of disks and VM files
