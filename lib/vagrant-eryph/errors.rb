@@ -26,6 +26,22 @@ module VagrantPlugins
         end
       end
 
+      class OperationFailedError < EryphError
+        error_key(:operation_failed)
+      end
+
+      class ProjectNotFoundError < EryphError
+        error_key(:project_not_found)
+      end
+
+      class ProjectCreationError < EryphError
+        error_key(:project_creation_failed)
+      end
+
+      class CatletCreationError < EryphError
+        error_key(:catlet_creation_failed)
+      end
+
       class APIConnectionError < EryphError
         error_key(:api_connection_failed)
       end
@@ -36,10 +52,6 @@ module VagrantPlugins
 
       class CatletNotFoundError < EryphError
         error_key(:catlet_not_found)
-      end
-
-      class OperationFailedError < EryphError
-        error_key(:operation_failed)
       end
 
       class ConfigurationError < EryphError

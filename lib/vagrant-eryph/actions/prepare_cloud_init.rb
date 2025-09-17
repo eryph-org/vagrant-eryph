@@ -42,9 +42,6 @@ module VagrantPlugins
           env[:catlet_fodder] = fodder
 
           @app.call(env)
-        rescue StandardError => e
-          ui.error("Failed to prepare cloud-init configuration: #{e.message}")
-          raise e
         end
       end
     end

@@ -2,6 +2,6 @@
 Vagrant.configure("2") do |config|  
   config.vm.provider :eryph do |eryph|
     # Ultra-minimal configuration - only parent is required
-    eryph.parent = "dbosoft/ubuntu-22.04/latest"
+    eryph.parent = "dbosoft/ubuntu-2"
   end
 end

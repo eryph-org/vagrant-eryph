@@ -3,6 +3,9 @@
 require 'optparse'
 require 'yaml'
 require 'json'
+require_relative 'config'
+require_relative 'helpers/eryph_client'
+require_relative 'errors'
 
 module VagrantPlugins
   module Eryph
@@ -54,6 +57,18 @@ module VagrantPlugins
       def initialize(argv, env)
         super
         @options = {}
+
+        # Parse global options from full argv first
+        global_parser = OptionParser.new do |o|
+          o.on('--configuration-name NAME', String) { |name| @options[:configuration_name] = name }
+          o.on('--client-id ID', String) { |id| @options[:client_id] = id }
+          o.on('--[no-]ssl-verify') { |verify| @options[:ssl_verify] = verify }
+          o.on('--ssl-ca-file FILE', String) { |file| @options[:ssl_ca_file] = file }
+        end
+
+        # Parse and remove global options, leaving subcommand and its args
+        remaining_args = global_parser.parse(argv.dup)
+
         @parser = OptionParser.new do |o|
           o.banner = 'Usage: vagrant eryph project <subcommand> [options]'
           o.separator ''
@@ -63,19 +78,14 @@ module VagrantPlugins
           o.separator '     remove     Remove a project'
           o.separator ''
           o.separator 'Global Options:'
-          
-          o.on('--configuration-name NAME', String, 'Eryph configuration name (default: auto-detect)') do |name|
-            @options[:configuration_name] = name
-          end
-          
-          o.on('--client-id ID', String, 'Eryph client ID') do |id|
-            @options[:client_id] = id
-          end
-          
+          o.separator '     --configuration-name NAME    Eryph configuration name (default: auto-detect)'
+          o.separator '     --client-id ID               Eryph client ID'
+          o.separator '     --[no-]ssl-verify            Enable/disable SSL certificate verification'
+          o.separator '     --ssl-ca-file FILE           Path to custom CA certificate file'
           o.separator ''
         end
 
-        @main_args, @sub_command, @sub_args = split_main_and_subcommand(argv)
+        @main_args, @sub_command, @sub_args = split_main_and_subcommand(remaining_args)
       end
 
       def execute
@@ -136,15 +146,10 @@ module VagrantPlugins
         project_name = argv[0]
         client = get_eryph_client
 
-        begin
-          @env.ui.info("Creating project: #{project_name}")
-          project = client.create_project(project_name)
-          @env.ui.info("Project '#{project.name}' created successfully (ID: #{project.id})")
-          0
-        rescue StandardError => e
-          @env.ui.error("Failed to create project: #{e.message}")
-          1
-        end
+        @env.ui.info("Creating project: #{project_name}")
+        project = client.create_project(project_name)
+        @env.ui.info("Project '#{project.name}' created successfully (ID: #{project.id})")
+        0
       end
 
       def execute_remove
@@ -177,59 +182,29 @@ module VagrantPlugins
         project_name = argv[0]
         client = get_eryph_client
 
-        begin
-          project = client.get_project(project_name)
-          unless project
-            @env.ui.error("Project '#{project_name}' not found")
-            return 1
-          end
-
-          unless @options[:force]
-            response = @env.ui.ask("Project '#{project.name}' (ID: #{project.id}) and all catlets will be deleted! Continue? (y/N)")
-            return 0 unless response.downcase.start_with?('y')
-          end
-
-          @env.ui.info("Removing project: #{project.name}")
-          delete_project(client, project.id)
-          @env.ui.info("Project '#{project.name}' removed successfully")
-          0
-        rescue StandardError => e
-          @env.ui.error("Failed to remove project: #{e.message}")
-          1
+        project = client.get_project(project_name)
+        unless project
+          raise Errors::ProjectNotFoundError, { project_name: project_name }
         end
+
+        unless @options[:force]
+          response = @env.ui.ask("Project '#{project.name}' (ID: #{project.id}) and all catlets will be deleted! Continue? (y/N)")
+          return 0 unless response.downcase.start_with?('y')
+        end
+
+        @env.ui.info("Removing project: #{project.name}")
+        delete_project(client, project.id)
+        @env.ui.info("Project '#{project.name}' removed successfully")
+        0
       end
 
       def get_eryph_client
-        # Try to get client from existing machines
-        @env.machine_names.each do |name|
-          machine = @env.machine(name, :eryph)
-          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
-            client = Helpers::EryphClient.new(machine)
-            
-            # Override client configuration if command line options are provided
-            if @options[:configuration_name] || @options[:client_id]
-              override_client_config(client)
-            end
-            
-            return client
-          end
-        end
-
-        # If no machines found, create a temporary config with command line options
+        # Always use standalone client for project management commands
         create_standalone_client
       end
 
       private
 
-      def override_client_config(client)
-        # Update the client's configuration with command line options
-        config = client.instance_variable_get(:@config)
-        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
-        config.client_id = @options[:client_id] if @options[:client_id]
-        
-        # Force recreation of the client with new config
-        client.instance_variable_set(:@client, nil)
-      end
 
       def create_standalone_client
         # Create a minimal machine-like object for standalone client
@@ -238,6 +213,8 @@ module VagrantPlugins
         config = VagrantPlugins::Eryph::Config.new
         config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
         config.client_id = @options[:client_id] if @options[:client_id]
+        config.ssl_verify = @options[:ssl_verify] unless @options[:ssl_verify].nil?
+        config.ssl_ca_file = @options[:ssl_ca_file] if @options[:ssl_ca_file]
         config.finalize!
         
         # Create a fake machine with just the provider config we need
@@ -248,7 +225,7 @@ module VagrantPlugins
         
         Helpers::EryphClient.new(fake_machine)
       rescue StandardError => e
-        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
+        raise "Failed to create Eryph client: #{e.message}. Please ensure eryph is running and your client configuration is set up correctly."
       end
 
       def delete_project(client, project_id)
@@ -271,6 +248,18 @@ module VagrantPlugins
       def initialize(argv, env)
         super
         @options = {}
+
+        # Parse global options from full argv first
+        global_parser = OptionParser.new do |o|
+          o.on('--configuration-name NAME', String) { |name| @options[:configuration_name] = name }
+          o.on('--client-id ID', String) { |id| @options[:client_id] = id }
+          o.on('--[no-]ssl-verify') { |verify| @options[:ssl_verify] = verify }
+          o.on('--ssl-ca-file FILE', String) { |file| @options[:ssl_ca_file] = file }
+        end
+
+        # Parse and remove global options, leaving subcommand and its args
+        remaining_args = global_parser.parse(argv.dup)
+
         @parser = OptionParser.new do |o|
           o.banner = 'Usage: vagrant eryph network <subcommand> [options]'
           o.separator ''
@@ -279,19 +268,14 @@ module VagrantPlugins
           o.separator '     set        Set project network configuration from YAML'
           o.separator ''
           o.separator 'Global Options:'
-          
-          o.on('--configuration-name NAME', String, 'Eryph configuration name (default: auto-detect)') do |name|
-            @options[:configuration_name] = name
-          end
-          
-          o.on('--client-id ID', String, 'Eryph client ID') do |id|
-            @options[:client_id] = id
-          end
-          
+          o.separator '     --configuration-name NAME    Eryph configuration name (default: auto-detect)'
+          o.separator '     --client-id ID               Eryph client ID'
+          o.separator '     --[no-]ssl-verify            Enable/disable SSL certificate verification'
+          o.separator '     --ssl-ca-file FILE           Path to custom CA certificate file'
           o.separator ''
         end
 
-        @main_args, @sub_command, @sub_args = split_main_and_subcommand(argv)
+        @main_args, @sub_command, @sub_args = split_main_and_subcommand(remaining_args)
       end
 
       def execute
@@ -475,36 +459,12 @@ module VagrantPlugins
       end
 
       def get_eryph_client
-        # Try to get client from existing machines
-        @env.machine_names.each do |name|
-          machine = @env.machine(name, :eryph)
-          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
-            client = Helpers::EryphClient.new(machine)
-            
-            # Override client configuration if command line options are provided
-            if @options[:configuration_name] || @options[:client_id]
-              override_client_config(client)
-            end
-            
-            return client
-          end
-        end
-
-        # If no machines found, create a temporary config with command line options
+        # Always use standalone client for project management commands
         create_standalone_client
       end
 
       private
 
-      def override_client_config(client)
-        # Update the client's configuration with command line options
-        config = client.instance_variable_get(:@config)
-        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
-        config.client_id = @options[:client_id] if @options[:client_id]
-        
-        # Force recreation of the client with new config
-        client.instance_variable_set(:@client, nil)
-      end
 
       def create_standalone_client
         # Create a minimal machine-like object for standalone client
@@ -513,6 +473,8 @@ module VagrantPlugins
         config = VagrantPlugins::Eryph::Config.new
         config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
         config.client_id = @options[:client_id] if @options[:client_id]
+        config.ssl_verify = @options[:ssl_verify] unless @options[:ssl_verify].nil?
+        config.ssl_ca_file = @options[:ssl_ca_file] if @options[:ssl_ca_file]
         config.finalize!
         
         # Create a fake machine with just the provider config we need
@@ -523,7 +485,7 @@ module VagrantPlugins
         
         Helpers::EryphClient.new(fake_machine)
       rescue StandardError => e
-        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
+        raise "Failed to create Eryph client: #{e.message}. Please ensure eryph is running and your client configuration is set up correctly."
       end
 
       def parse_network_config(config_string)

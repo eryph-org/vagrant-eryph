@@ -23,9 +23,6 @@ module VagrantPlugins
           ui.info('Catlet destroyed successfully')
 
           @app.call(env)
-        rescue StandardError => e
-          ui.error("Failed to destroy catlet: #{e.message}")
-          raise e
         end
       end
     end
