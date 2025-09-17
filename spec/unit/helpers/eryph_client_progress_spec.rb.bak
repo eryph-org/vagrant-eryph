@@ -44,11 +44,12 @@ RSpec.describe VagrantPlugins::Eryph::Helpers::EryphClient, 'log message display
       # Call the method
       client.wait_for_operation(operation_id)
 
-      # Should show log messages directly without operation ID prefix
+      # Should show log messages with operation ID prefix
+      log_messages = ui_messages.select { |msg| msg.start_with?("Operation #{operation_id}:") }
 
-      expect(ui_messages).to include("Pulling volume gene:dbosoft/winsrv2019-standard/20250911:sda (hyperv/amd64) (234 MiB / 4604 MiB) => 5,1 % completed")
-      expect(ui_messages).to include("Pulling volume gene:dbosoft/winsrv2019-standard/20250911:sda (hyperv/amd64) (464 MiB / 4604 MiB) => 10,1 % completed")
-      expect(ui_messages).to include("Configure Catlet CPU count: 2")
+      expect(log_messages).to include("Operation #{operation_id}: Pulling volume gene:dbosoft/winsrv2019-standard/20250911:sda (hyperv/amd64) (234 MiB / 4604 MiB) => 5,1 % completed")
+      expect(log_messages).to include("Operation #{operation_id}: Pulling volume gene:dbosoft/winsrv2019-standard/20250911:sda (hyperv/amd64) (464 MiB / 4604 MiB) => 10,1 % completed")
+      expect(log_messages).to include("Operation #{operation_id}: Configure Catlet CPU count: 2")
     end
 
     it 'handles log entries without messages gracefully' do
