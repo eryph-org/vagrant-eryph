@@ -3,6 +3,8 @@
 require 'optparse'
 require 'yaml'
 require 'json'
+require_relative 'config'
+require_relative 'helpers/eryph_client'
 
 module VagrantPlugins
   module Eryph
@@ -234,7 +236,7 @@ module VagrantPlugins
         
         Helpers::EryphClient.new(fake_machine)
       rescue StandardError => e
-        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
+        raise "Failed to create Eryph client: #{e.message}. Please ensure eryph is running and your client configuration is set up correctly."
       end
 
       def delete_project(client, project_id)
@@ -495,7 +497,7 @@ module VagrantPlugins
         
         Helpers::EryphClient.new(fake_machine)
       rescue StandardError => e
-        raise "Failed to create Eryph client: #{e.message}. Please configure at least one machine with the Eryph provider or ensure your Eryph configuration is set up."
+        raise "Failed to create Eryph client: #{e.message}. Please ensure eryph is running and your client configuration is set up correctly."
       end
 
       def parse_network_config(config_string)
