@@ -71,7 +71,15 @@ module VagrantPlugins
           o.on('--client-id ID', String, 'Eryph client ID') do |id|
             @options[:client_id] = id
           end
-          
+
+          o.on('--[no-]ssl-verify', 'Enable/disable SSL certificate verification') do |verify|
+            @options[:ssl_verify] = verify
+          end
+
+          o.on('--ssl-ca-file FILE', String, 'Path to custom CA certificate file') do |file|
+            @options[:ssl_ca_file] = file
+          end
+
           o.separator ''
         end
 
@@ -200,36 +208,12 @@ module VagrantPlugins
       end
 
       def get_eryph_client
-        # Try to get client from existing machines
-        @env.machine_names.each do |name|
-          machine = @env.machine(name, :eryph)
-          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
-            client = Helpers::EryphClient.new(machine)
-            
-            # Override client configuration if command line options are provided
-            if @options[:configuration_name] || @options[:client_id]
-              override_client_config(client)
-            end
-            
-            return client
-          end
-        end
-
-        # If no machines found, create a temporary config with command line options
+        # Always use standalone client for project management commands
         create_standalone_client
       end
 
       private
 
-      def override_client_config(client)
-        # Update the client's configuration with command line options
-        config = client.instance_variable_get(:@config)
-        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
-        config.client_id = @options[:client_id] if @options[:client_id]
-        
-        # Force recreation of the client with new config
-        client.instance_variable_set(:@client, nil)
-      end
 
       def create_standalone_client
         # Create a minimal machine-like object for standalone client
@@ -238,6 +222,8 @@ module VagrantPlugins
         config = VagrantPlugins::Eryph::Config.new
         config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
         config.client_id = @options[:client_id] if @options[:client_id]
+        config.ssl_verify = @options[:ssl_verify] unless @options[:ssl_verify].nil?
+        config.ssl_ca_file = @options[:ssl_ca_file] if @options[:ssl_ca_file]
         config.finalize!
         
         # Create a fake machine with just the provider config we need
@@ -287,7 +273,15 @@ module VagrantPlugins
           o.on('--client-id ID', String, 'Eryph client ID') do |id|
             @options[:client_id] = id
           end
-          
+
+          o.on('--[no-]ssl-verify', 'Enable/disable SSL certificate verification') do |verify|
+            @options[:ssl_verify] = verify
+          end
+
+          o.on('--ssl-ca-file FILE', String, 'Path to custom CA certificate file') do |file|
+            @options[:ssl_ca_file] = file
+          end
+
           o.separator ''
         end
 
@@ -475,36 +469,12 @@ module VagrantPlugins
       end
 
       def get_eryph_client
-        # Try to get client from existing machines
-        @env.machine_names.each do |name|
-          machine = @env.machine(name, :eryph)
-          if machine.provider_config.is_a?(VagrantPlugins::Eryph::Config)
-            client = Helpers::EryphClient.new(machine)
-            
-            # Override client configuration if command line options are provided
-            if @options[:configuration_name] || @options[:client_id]
-              override_client_config(client)
-            end
-            
-            return client
-          end
-        end
-
-        # If no machines found, create a temporary config with command line options
+        # Always use standalone client for project management commands
         create_standalone_client
       end
 
       private
 
-      def override_client_config(client)
-        # Update the client's configuration with command line options
-        config = client.instance_variable_get(:@config)
-        config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
-        config.client_id = @options[:client_id] if @options[:client_id]
-        
-        # Force recreation of the client with new config
-        client.instance_variable_set(:@client, nil)
-      end
 
       def create_standalone_client
         # Create a minimal machine-like object for standalone client
@@ -513,6 +483,8 @@ module VagrantPlugins
         config = VagrantPlugins::Eryph::Config.new
         config.configuration_name = @options[:configuration_name] if @options[:configuration_name]
         config.client_id = @options[:client_id] if @options[:client_id]
+        config.ssl_verify = @options[:ssl_verify] unless @options[:ssl_verify].nil?
+        config.ssl_ca_file = @options[:ssl_ca_file] if @options[:ssl_ca_file]
         config.finalize!
         
         # Create a fake machine with just the provider config we need
