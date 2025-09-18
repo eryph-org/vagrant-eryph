@@ -132,8 +132,9 @@ RSpec.describe 'E2E Smoke Tests' do
       expect(result[:stdout]).to include('Host '), "No SSH host configuration"
       expect(result[:stdout]).to include('HostName '), "No SSH hostname"
       
-      # 5. VAGRANT SSH - test actual connectivity
-      result = run_vagrant_command('ssh -c "echo Hello from E2E test"', timeout: 60)
+      # 5. VAGRANT SSH - test actual connectivity (non-interactive mode)
+      # Use BatchMode to prevent SSH from hanging waiting for input in non-interactive contexts
+      result = run_vagrant_command('ssh -c "echo Hello from E2E test" -- -o BatchMode=yes', timeout: 60)
       expect(result[:success]).to be(true), "SSH connection failed: #{result[:stderr]}"
       expect(result[:stdout]).to include('Hello from E2E test'), "SSH command did not execute"
       
@@ -177,8 +178,8 @@ RSpec.describe 'E2E Smoke Tests' do
       expect(result[:success]).to be(true), "vagrant status after reload failed: #{result[:stderr]}"
       expect(result[:stdout]).to match(/running/i), "VM should be running after reload"
 
-      # 5. Test SSH connectivity after reload
-      result = run_vagrant_command('ssh -c "echo Reload test successful"', timeout: 60)
+      # 5. Test SSH connectivity after reload (non-interactive mode)
+      result = run_vagrant_command('ssh -c "echo Reload test successful" -- -o BatchMode=yes', timeout: 60)
       expect(result[:success]).to be(true), "SSH after reload failed: #{result[:stderr]}"
       expect(result[:stdout]).to include('Reload test successful'), "SSH should work after reload"
 
@@ -199,8 +200,8 @@ RSpec.describe 'E2E Smoke Tests' do
       expect(result[:success]).to be(true), "vagrant status after reload --provision failed: #{result[:stderr]}"
       expect(result[:stdout]).to match(/running/i), "VM should be running after reload --provision"
 
-      # 4. Test SSH connectivity
-      result = run_vagrant_command('ssh -c "echo Reload with provision successful"', timeout: 60)
+      # 4. Test SSH connectivity (non-interactive mode)
+      result = run_vagrant_command('ssh -c "echo Reload with provision successful" -- -o BatchMode=yes', timeout: 60)
       expect(result[:success]).to be(true), "SSH after reload --provision failed: #{result[:stderr]}"
       expect(result[:stdout]).to include('Reload with provision successful'), "SSH should work after reload --provision"
 
