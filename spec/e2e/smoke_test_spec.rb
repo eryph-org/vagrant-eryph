@@ -10,26 +10,51 @@ RSpec.describe 'E2E Smoke Tests' do
   def run_vagrant_command(command, timeout: 300)
     # Run Vagrant command and capture output
     # NO environment checks - just run and let it fail naturally
-    
+
     cmd = "vagrant #{command}"
     puts "Running: #{cmd}"
-    
-    stdout, stderr, status = nil, nil, nil
-    
-    Timeout::timeout(timeout) do
-      stdout, stderr, status = Open3.capture3(
-        cmd,
-        chdir: test_dir
-      )
+
+    # Use Open3.popen3 with explicit timeout handling to avoid race conditions
+    # This replaces the problematic Timeout::timeout wrapper around Open3.capture3
+    stdout_str, stderr_str = "", ""
+    status = nil
+
+    Open3.popen3(cmd, chdir: test_dir) do |stdin, stdout, stderr, wait_thr|
+      stdin.close
+
+      # Create threads to read output without blocking
+      stdout_thread = Thread.new { stdout.read }
+      stderr_thread = Thread.new { stderr.read }
+
+      # Wait for process to complete or timeout
+      if wait_thr.join(timeout)
+        stdout_str = stdout_thread.value
+        stderr_str = stderr_thread.value
+        status = wait_thr.value
+      else
+        # Timeout occurred - terminate process
+        Process.kill('KILL', wait_thr.pid) rescue nil
+        wait_thr.join(1) # Give it a moment to cleanup
+        stdout_thread.kill
+        stderr_thread.kill
+
+        puts "❌ Command timed out after #{timeout}s: #{cmd}"
+        return {
+          stdout: "",
+          stderr: "Command timed out after #{timeout} seconds",
+          success: false,
+          exitstatus: 124 # Standard timeout exit code
+        }
+      end
     end
-    
-    puts "STDOUT:\n#{stdout}" unless stdout.empty?
-    puts "STDERR:\n#{stderr}" unless stderr.empty?
+
+    puts "STDOUT:\n#{stdout_str}" unless stdout_str.empty?
+    puts "STDERR:\n#{stderr_str}" unless stderr_str.empty?
     puts "Exit code: #{status.exitstatus}"
-    
+
     {
-      stdout: stdout,
-      stderr: stderr,
+      stdout: stdout_str,
+      stderr: stderr_str,
       success: status.success?,
       exitstatus: status.exitstatus
     }
